@@ -26,6 +26,18 @@ export function isAuthProtectedRoute(pathname: string): boolean {
 }
 
 /**
+ * Returns whether the pathname is publicly accessible before authentication.
+ */
+export function isPublicAuthRoute(pathname: string): boolean {
+  return (
+    pathname === "/auth" ||
+    pathname.startsWith("/auth/") ||
+    pathname === "/" ||
+    pathname.startsWith("/api/")
+  );
+}
+
+/**
  * Returns whether the given account type may access the pathname.
  */
 export function canAccessRoute(accountType: string, pathname: string): boolean {

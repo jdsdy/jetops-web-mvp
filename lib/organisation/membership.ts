@@ -1,6 +1,7 @@
 export const ORGANISATION_MEMBERSHIP_SELECT = `
   role,
-  is_active,
+  is_admin,
+  status,
   organisations!inner (
     id,
     name,
@@ -10,7 +11,8 @@ export const ORGANISATION_MEMBERSHIP_SELECT = `
 
 export type OrganisationMembership = {
   role: string;
-  is_active: boolean;
+  is_admin: boolean;
+  status: string;
   organisations: {
     id: string;
     name: string;

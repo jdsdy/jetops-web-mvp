@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 
+import { formatMemberDisplayName } from "@/lib/organisation/display-name";
 import { validateOrganisationName } from "@/lib/organisation/validate-name";
 import { createClient } from "@/lib/supabase/server";
 
@@ -31,9 +32,20 @@ export async function createOrganisation(
     return { error: "You must be signed in to create an organisation" };
   }
 
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("f_name, l_initial")
+    .eq("id", user.id)
+    .single();
+
+  if (profileError || !profile) {
+    return { error: "Profile not found" };
+  }
+
   const { error } = await supabase.rpc("create_organisation", {
     org_name: validation.name,
     org_slug: validation.slug,
+    member_display_name: formatMemberDisplayName(profile.f_name, profile.l_initial),
   });
 
   if (error) {

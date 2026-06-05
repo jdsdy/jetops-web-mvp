@@ -17,7 +17,7 @@ export async function getActiveMembership(
     .from("organisation_members")
     .select(ORGANISATION_MEMBERSHIP_SELECT)
     .eq("user_id", userId)
-    .eq("is_active", true);
+    .eq("status", "active");
 
   if (slug) {
     query = query.eq("organisations.slug", slug);
@@ -39,7 +39,8 @@ export async function getActiveMembership(
 
   return {
     role: data.role,
-    is_active: data.is_active,
+    is_admin: data.is_admin,
+    status: data.status,
     organisations: organisation,
   };
 }

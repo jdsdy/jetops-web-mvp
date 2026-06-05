@@ -7,7 +7,8 @@
 | `/onboarding` | Yes | Name collection step |
 | `/portal/organisation` | Yes (organisation) | Resolves membership and redirects |
 | `/portal/organisation/setup` | Yes (organisation) | Create organisation form |
-| `/portal/organisation/{slug}` | Yes (organisation) | Organisation portal for a member |
+| `/portal/organisation/{slug}` | Yes (organisation) | Organisation portal for a member (includes admin invite form) |
+| `/auth/accept-invite` | No (until token verified) | Invite acceptance and password setup |
 | `/app/personal` | Yes (personal) | Personal app shell |
 | `/app/organisation` | Yes (organisation) | Organisation app shell |
 
