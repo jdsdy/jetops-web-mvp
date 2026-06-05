@@ -20,7 +20,7 @@ export function OrganisationMembers({ members }: OrganisationMembersProps) {
             <li key={member.id}>
               <span>{member.display_name ?? "Unknown member"}</span>
               <span> — {member.role}</span>
-              {member.status !== "active" ? <span> ({member.status})</span> : null}
+              {member.is_admin ? <span> (admin)</span> : null}
             </li>
           ))}
         </ul>

@@ -13,10 +13,14 @@ const MEMBERSHIP_SELECT = `
 
 const MEMBERS_LIST_SELECT = `
   id,
+  user_id,
   display_name,
   role,
-  status
+  status,
+  is_admin
 ` as const;
+
+const MEMBER_STATUSES = ["active", "pending", "disabled"] as const;
 
 const INVITE_EXPIRY_DAYS = 7;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -36,10 +40,36 @@ export type OrganisationMembership = {
 
 export type OrganisationMember = {
   id: number;
+  user_id: string;
   display_name: string | null;
   role: string;
   status: string;
+  is_admin: boolean;
 };
+
+export type MemberUpdatePatch = {
+  role?: string;
+  status?: string;
+  is_admin?: boolean;
+};
+
+type MemberUpdateValidationSuccess = {
+  valid: true;
+  patch: MemberUpdatePatch;
+};
+
+type MemberUpdateValidationFailure = {
+  valid: false;
+  error: string;
+};
+
+export type MemberUpdateValidationResult =
+  | MemberUpdateValidationSuccess
+  | MemberUpdateValidationFailure;
+
+type MemberChangeAllowedResult =
+  | { allowed: true }
+  | { allowed: false; error: string };
 
 export type OrganisationInvitationRecord = {
   invited_user_id: string;
@@ -164,6 +194,85 @@ export function validateInvitePayload(input: InviteInput): InviteValidationResul
 }
 
 /**
+ * Validates a partial organisation member update payload.
+ */
+export function validateMemberUpdatePayload(
+  body: Record<string, unknown>,
+): MemberUpdateValidationResult {
+  const patch: MemberUpdatePatch = {};
+
+  if ("role" in body) {
+    const role = String(body.role ?? "").trim();
+
+    if (!role) {
+      return { valid: false, error: "Role is required" };
+    }
+
+    patch.role = role;
+  }
+
+  if ("status" in body) {
+    const status = String(body.status ?? "");
+
+    if (!(MEMBER_STATUSES as readonly string[]).includes(status)) {
+      return { valid: false, error: "Status is invalid" };
+    }
+
+    patch.status = status;
+  }
+
+  if ("is_admin" in body) {
+    if (typeof body.is_admin !== "boolean") {
+      return { valid: false, error: "is_admin must be a boolean" };
+    }
+
+    patch.is_admin = body.is_admin;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return { valid: false, error: "At least one field is required" };
+  }
+
+  return { valid: true, patch };
+}
+
+/**
+ * Returns whether an admin may apply a membership change to the target member.
+ */
+export function assertMemberChangeAllowed(input: {
+  actorUserId: string;
+  targetMember: OrganisationMember;
+  activeAdminCount: number;
+  patch: MemberUpdatePatch;
+}): MemberChangeAllowedResult {
+  const { actorUserId, targetMember, activeAdminCount, patch } = input;
+  const isSelf = targetMember.user_id === actorUserId;
+  const removesAdmin =
+    patch.status === "disabled" ||
+    (patch.is_admin === false && targetMember.is_admin);
+  const isLastActiveAdmin =
+    targetMember.is_admin &&
+    targetMember.status === "active" &&
+    activeAdminCount <= 1;
+
+  if (isSelf && (patch.status === "disabled" || patch.is_admin === false)) {
+    return {
+      allowed: false,
+      error: "You cannot change your own membership",
+    };
+  }
+
+  if (removesAdmin && isLastActiveAdmin) {
+    return {
+      allowed: false,
+      error: "Cannot remove the last active admin",
+    };
+  }
+
+  return { allowed: true };
+}
+
+/**
  * Returns whether an organisation invitation can still be accepted.
  */
 export function isInvitationAcceptable(
@@ -263,6 +372,27 @@ export async function getActiveMembership(
   }
 
   return normaliseMembershipRow(data);
+}
+
+/**
+ * Loads active members for an organisation by organisation ID.
+ */
+export async function getActiveOrganisationMembers(
+  supabase: SupabaseClient,
+  organisationId: string,
+): Promise<OrganisationMember[]> {
+  const { data, error } = await supabase
+    .from("organisation_members")
+    .select(MEMBERS_LIST_SELECT)
+    .eq("organisation_id", organisationId)
+    .eq("status", "active")
+    .order("display_name", { ascending: true });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data;
 }
 
 /**

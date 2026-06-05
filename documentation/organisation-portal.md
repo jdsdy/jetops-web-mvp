@@ -42,21 +42,20 @@ const { data: membership } = await supabase
 
 ## Members list
 
-`/portal/organisation/{slug}` loads all rows from `organisation_members` for the organisation ID:
+Non-admin members on `/portal/organisation/{slug}` see a read-only list of **active** members via `getActiveOrganisationMembers`.
 
-```typescript
-const members = await supabase
-  .from("organisation_members")
-  .select("display_name, role, status")
-  .eq("organisation_id", organisationId)
-  .order("display_name");
-```
+## User management
 
-Active members can view other members in the same organisation via RLS.
+Organisation admins see the **User management** section instead of the read-only list. It loads data from:
+
+- `GET /api/organisations/{slug}/members`
+- `GET /api/organisations/{slug}/invites`
+
+Admins can update roles, toggle admin status, deactivate members, cancel pending invites, and send new invites. See [organisation-members.md](./organisation-members.md) and [organisation-invites.md](./organisation-invites.md).
 
 ## Invites
 
-Organisation admins can invite members from the portal page. See [organisation-invites.md](./organisation-invites.md).
+Organisation admins manage invites from the user management section. See [organisation-invites.md](./organisation-invites.md).
 
 ## Tests
 

@@ -24,6 +24,49 @@ function jsonError(message: string, status: number) {
 }
 
 /**
+ * Lists pending organisation invitations for the current admin.
+ */
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ slug: string }> },
+) {
+  const { slug } = await context.params;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return jsonError("Unauthorized", 401);
+  }
+
+  const { membership, error: adminError } = await requireOrgAdmin(
+    supabase,
+    user.id,
+    slug,
+  );
+
+  if (adminError || !membership) {
+    return jsonError("Forbidden", 403);
+  }
+
+  const adminClient = createAdminClient();
+  const { data, error } = await adminClient
+    .from("organisation_invitations")
+    .select("id, email, role, expires_at, created_at")
+    .eq("organisation_id", membership.organisations.id)
+    .is("accepted_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return jsonError(error.message, 500);
+  }
+
+  return Response.json(data ?? []);
+}
+
+/**
  * Sends an organisation invite and creates invitation plus pending membership records.
  */
 export async function POST(

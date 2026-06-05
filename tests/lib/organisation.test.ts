@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  assertMemberChangeAllowed,
   formatMemberDisplayName,
   getOrganisationPortalRedirect,
   isInvitationAcceptable,
   isOrgAdminMembership,
   organisationNameToSlug,
   validateInvitePayload,
+  validateMemberUpdatePayload,
   validateOrganisationName,
 } from "@/lib/organisation";
 
@@ -207,5 +209,122 @@ describe("isOrgAdminMembership", () => {
         status: "pending",
       }),
     ).toBe(false);
+  });
+});
+
+describe("validateMemberUpdatePayload", () => {
+  it("requires at least one field", () => {
+    expect(validateMemberUpdatePayload({})).toEqual({
+      valid: false,
+      error: "At least one field is required",
+    });
+  });
+
+  it("rejects an empty role", () => {
+    expect(validateMemberUpdatePayload({ role: "   " })).toEqual({
+      valid: false,
+      error: "Role is required",
+    });
+  });
+
+  it("rejects an invalid status", () => {
+    expect(validateMemberUpdatePayload({ status: "removed" })).toEqual({
+      valid: false,
+      error: "Status is invalid",
+    });
+  });
+
+  it("accepts a partial update with trimmed role", () => {
+    expect(validateMemberUpdatePayload({ role: "  pilot  " })).toEqual({
+      valid: true,
+      patch: { role: "pilot" },
+    });
+  });
+
+  it("accepts status and is_admin updates", () => {
+    expect(
+      validateMemberUpdatePayload({ status: "disabled", is_admin: true }),
+    ).toEqual({
+      valid: true,
+      patch: { status: "disabled", is_admin: true },
+    });
+  });
+});
+
+describe("assertMemberChangeAllowed", () => {
+  const targetMember = {
+    id: 1,
+    user_id: "user-1",
+    display_name: "Jane S",
+    role: "pilot",
+    status: "active",
+    is_admin: true,
+  };
+
+  it("allows updating another member", () => {
+    expect(
+      assertMemberChangeAllowed({
+        actorUserId: "admin-1",
+        targetMember,
+        activeAdminCount: 2,
+        patch: { role: "captain" },
+      }),
+    ).toEqual({ allowed: true });
+  });
+
+  it("rejects self deactivation", () => {
+    expect(
+      assertMemberChangeAllowed({
+        actorUserId: "user-1",
+        targetMember,
+        activeAdminCount: 2,
+        patch: { status: "disabled" },
+      }),
+    ).toEqual({
+      allowed: false,
+      error: "You cannot change your own membership",
+    });
+  });
+
+  it("rejects self admin demotion", () => {
+    expect(
+      assertMemberChangeAllowed({
+        actorUserId: "user-1",
+        targetMember,
+        activeAdminCount: 2,
+        patch: { is_admin: false },
+      }),
+    ).toEqual({
+      allowed: false,
+      error: "You cannot change your own membership",
+    });
+  });
+
+  it("rejects deactivating the last active admin", () => {
+    expect(
+      assertMemberChangeAllowed({
+        actorUserId: "admin-1",
+        targetMember,
+        activeAdminCount: 1,
+        patch: { status: "disabled" },
+      }),
+    ).toEqual({
+      allowed: false,
+      error: "Cannot remove the last active admin",
+    });
+  });
+
+  it("rejects demoting the last active admin", () => {
+    expect(
+      assertMemberChangeAllowed({
+        actorUserId: "admin-1",
+        targetMember,
+        activeAdminCount: 1,
+        patch: { is_admin: false },
+      }),
+    ).toEqual({
+      allowed: false,
+      error: "Cannot remove the last active admin",
+    });
   });
 });

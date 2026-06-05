@@ -1,6 +1,6 @@
 # Organisation invites
 
-Organisation admins can invite new members from `/portal/organisation/{slug}`.
+Organisation admins can invite and manage pending members from `/portal/organisation/{slug}`.
 
 ## Requirements
 
@@ -11,7 +11,11 @@ Organisation admins can invite new members from `/portal/organisation/{slug}`.
 
 ## API
 
-`POST /api/organisations/{slug}/invites`
+All invite routes require an authenticated active admin of the organisation.
+
+### `POST /api/organisations/{slug}/invites`
+
+Sends an invite email and creates invitation plus pending membership records.
 
 Request body:
 
@@ -24,7 +28,15 @@ Request body:
 }
 ```
 
-Responses:
+Response: `201`
+
+```json
+{
+  "userId": "uuid",
+  "email": "pilot@example.com",
+  "invitationId": "uuid"
+}
+```
 
 | Status | Meaning |
 | --- | --- |
@@ -34,9 +46,46 @@ Responses:
 | 403 | User is not an active admin of the organisation |
 | 500 | `inviteUserByEmail` or record creation failed |
 
+### `GET /api/organisations/{slug}/invites`
+
+Lists **pending** invites: `accepted_at IS NULL` and not expired.
+
+Response: `200`
+
+```json
+[
+  {
+    "id": "uuid",
+    "email": "pilot@example.com",
+    "role": "member",
+    "expires_at": "2026-06-12T08:47:52.227+00:00",
+    "created_at": "2026-06-05T08:47:52.421963+00:00"
+  }
+]
+```
+
+Uses the service role after the admin check (RLS does not grant admins invite reads).
+
+### `DELETE /api/organisations/{slug}/invites/{inviteId}`
+
+Cancels a pending invite:
+
+1. Deletes the `organisation_invitations` row
+2. Deletes the linked **pending** `organisation_members` row for the invited user
+
+Response: `204`
+
+| Status | Meaning |
+| --- | --- |
+| 204 | Invite cancelled |
+| 401 | No authenticated session |
+| 403 | User is not an active admin |
+| 404 | Invite not found |
+| 500 | Delete failed |
+
 ## Invite flow
 
-1. Admin submits invite form on the portal page.
+1. Admin submits invite form on the portal page (or `POST` above).
 2. API validates session and admin membership via `requireOrgAdmin`.
 3. API calls `supabaseAdmin.auth.admin.inviteUserByEmail` with user metadata and `redirectTo: /auth/accept-invite`.
 4. On success, API calls `create_organisation_invite_records` to insert:
@@ -60,16 +109,16 @@ Routes:
 ```
 
 3. App loads `organisation_invitations` for `invited_user_id = auth.uid()`.
-3. Invitation must be valid:
+4. Invitation must be valid:
    - `invited_user_id` matches the signed-in user
    - `expires_at` is in the future
    - `accepted_at` is null
-4. If invalid → show **"This invite is no longer valid."**
-5. If valid → user sets password via `updateUser({ password })`.
-6. Server action calls `accept_organisation_invitation`, which:
+5. If invalid → show **"This invite is no longer valid."**
+6. If valid → user sets password via `updateUser({ password })`.
+7. Server action calls `accept_organisation_invitation`, which:
    - Sets `accepted_at = now()`
    - Updates membership `status` from `pending` to `active`
-7. User is redirected to `/portal/organisation/{slug}`.
+8. User is redirected to `/portal/organisation/{slug}`.
 
 ## Environment variables
 

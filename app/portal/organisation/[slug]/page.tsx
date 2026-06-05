@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { InviteMemberForm } from "@/app/portal/organisation/[slug]/_components/invite-member-form";
 import { OrganisationMembers } from "@/app/portal/organisation/[slug]/_components/organisation-members";
+import { UserManagement } from "@/app/portal/organisation/[slug]/_components/user-management";
 import { LogoutButton } from "@/components/logout-button";
 import {
   getActiveMembership,
-  getOrganisationMembers,
-  getOrganisationPortalRedirect,
+  getActiveOrganisationMembers,
 } from "@/lib/organisation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -36,17 +35,19 @@ export default async function OrganisationPortalSlugPage({
     redirect("/portal/organisation/setup");
   }
 
-  const members = await getOrganisationMembers(
-    supabase,
-    membership.organisations.id,
-  );
+  const activeMembers = membership.is_admin
+    ? []
+    : await getActiveOrganisationMembers(supabase, membership.organisations.id);
 
   return (
     <main>
       <h1>/portal/organisation/{slug}</h1>
       <p>{membership.organisations.name}</p>
-      {membership.is_admin ? <InviteMemberForm slug={slug} /> : null}
-      <OrganisationMembers members={members} />
+      {membership.is_admin ? (
+        <UserManagement slug={slug} currentUserId={user.id} />
+      ) : (
+        <OrganisationMembers members={activeMembers} />
+      )}
       <Link href="/app/organisation">
         <button type="button">Go to app/organisation</button>
       </Link>
