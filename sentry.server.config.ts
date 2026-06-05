@@ -4,13 +4,17 @@
 
 import * as Sentry from "@sentry/nextjs";
 
-Sentry.init({
-  dsn: "https://82ca7e1b376aa13ab07ec5f36a8955bd@o4511510983475200.ingest.us.sentry.io/4511510987276288",
+const isDevelopment = process.env.NODE_ENV === "development";
 
-  // Enable logs to be sent to Sentry
-  enableLogs: true,
+if (!isDevelopment) {
+  Sentry.init({
+    dsn: "https://82ca7e1b376aa13ab07ec5f36a8955bd@o4511510983475200.ingest.us.sentry.io/4511510987276288",
 
-  // Enable sending user PII (Personally Identifiable Information)
-  // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
-  sendDefaultPii: true,
-});
+    // Enable logs to be sent to Sentry
+    enableLogs: true,
+
+    // Enable sending user PII (Personally Identifiable Information)
+    // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
+    sendDefaultPii: true,
+  });
+}

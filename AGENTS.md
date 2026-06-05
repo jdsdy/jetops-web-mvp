@@ -21,7 +21,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Supabase project: Jet Ops MVP (`wohclkrdcyykdjqzczgy`); copy `.env.example` to `.env.local` for env vars.
 - Auth uses `@supabase/ssr` cookie sessions; clients in `lib/supabase/`, routing helpers in `lib/auth/`.
 - Account types are `organisation` or `personal`; signup stores `account_type` in user metadata and a trigger creates `profiles`.
-- Routes: `/`, `/auth`, `/auth/callback`, `/onboarding`, `/portal/organisation`, `/app/personal`, `/app/organisation`.
+- Routes: `/`, `/auth`, `/auth/callback`, `/onboarding`, `/portal/organisation`, `/portal/organisation/setup`, `/portal/organisation/{slug}`, `/app/personal`, `/app/organisation`.
+- Organisation membership uses `organisation_members.is_active` (boolean), not `status`; portal resolves via `getActiveMembership`.
 - Post-onboarding redirect: `organisation` → `/portal/organisation`, `personal` → `/app/personal`.
+- Account-type route protection in `proxy.ts` (`lib/auth/route-access.ts`); organisation vs personal routes are mutually exclusive.
 - Unit tests use Vitest (`npm test`); tests live in `tests/` mirroring source layout (e.g. `tests/lib/auth/` for `lib/auth/`).
 - Feature docs: `documentation/authentication.md`, `documentation/onboarding.md`, `documentation/routes.md`.

@@ -5,15 +5,32 @@
 | `/` | No | Home page with **Go to login** |
 | `/auth` | No | Login and signup form |
 | `/onboarding` | Yes | Name collection step |
-| `/portal/organisation` | Yes | Organisation portal (logout + link to app) |
-| `/app/personal` | Yes | Personal app shell |
-| `/app/organisation` | Yes | Organisation app shell |
+| `/portal/organisation` | Yes (organisation) | Resolves membership and redirects |
+| `/portal/organisation/setup` | Yes (organisation) | Create organisation form |
+| `/portal/organisation/{slug}` | Yes (organisation) | Organisation portal for a member |
+| `/app/personal` | Yes (personal) | Personal app shell |
+| `/app/organisation` | Yes (organisation) | Organisation app shell |
+
+## Account-type route protection
+
+After login, route access is enforced from `profile.account_type`:
+
+| Account type | Allowed routes | Denied routes |
+| --- | --- | --- |
+| `organisation` | `/portal/organisation`, `/app/organisation` | `/app/personal` |
+| `personal` | `/app/personal` | `/portal/organisation`, `/app/organisation` |
+
+Users who attempt a denied route are redirected to their account home (`/portal/organisation` or `/app/personal`). Users with incomplete onboarding are redirected to `/onboarding` when they hit an account-type route.
+
+Enforcement runs in `proxy.ts` via `lib/supabase/middleware.ts`. Logic is covered by tests in `tests/lib/auth/route-access.test.ts`.
 
 ## Organisation portal navigation
 
-`/portal/organisation` includes:
+See [organisation-portal.md](./organisation-portal.md) for membership resolution and setup.
 
-- A confirmation heading showing the current path
+`/portal/organisation/{slug}` includes:
+
+- Organisation name
 - **Go to app/organisation** → `/app/organisation`
 - **Logout**
 

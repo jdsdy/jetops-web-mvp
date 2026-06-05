@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { OnboardingForm } from "@/components/onboarding-form";
+import { OnboardingForm } from "@/app/onboarding/_components/onboarding-form";
 import { getRedirectForProfile } from "@/lib/auth/redirects";
 import { createClient } from "@/lib/supabase/server";
 
