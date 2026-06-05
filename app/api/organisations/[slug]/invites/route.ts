@@ -1,9 +1,12 @@
+import { NextResponse } from "next/server";
+
 import { getSiteUrl } from "@/lib/env";
-import { jsonError } from "@/lib/api/responses";
-import { formatMemberDisplayName } from "@/lib/organisation/display-name";
-import { getInviteExpiryDate } from "@/lib/organisation/invite-expiry";
-import { requireOrgAdmin } from "@/lib/organisation/require-org-admin";
-import { validateInvitePayload } from "@/lib/organisation/validate-invite";
+import {
+  formatMemberDisplayName,
+  getInviteExpiryDate,
+  requireOrgAdmin,
+  validateInvitePayload,
+} from "@/lib/organisation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -15,6 +18,10 @@ type InviteRequestBody = {
   l_initial?: string;
   role?: string;
 };
+
+function jsonError(message: string, status: number) {
+  return NextResponse.json({ error: message }, { status });
+}
 
 /**
  * Sends an organisation invite and creates invitation plus pending membership records.

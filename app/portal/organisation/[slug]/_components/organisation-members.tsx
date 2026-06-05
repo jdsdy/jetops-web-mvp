@@ -1,4 +1,4 @@
-import type { OrganisationMember } from "@/lib/organisation/organisation-member";
+import type { OrganisationMember } from "@/lib/organisation";
 
 type OrganisationMembersProps = {
   members: OrganisationMember[];

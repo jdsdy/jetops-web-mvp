@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 
-import { getActiveMembership } from "@/lib/organisation/get-active-membership";
-import { getOrganisationPortalRedirect } from "@/lib/organisation/portal-redirect";
+import {
+  getActiveMembership,
+  getOrganisationPortalRedirect,
+} from "@/lib/organisation";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function OrganisationPortalPage() {

@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from "react";
 
-import { acceptInvitation } from "@/app/actions/accept-invite";
+import { acceptInvitation } from "@/app/actions/organisation";
 import {
   hasInviteAuthParams,
   parseInviteUrl,
-} from "@/lib/auth/parse-invite-url";
+} from "@/lib/auth";
 import {
   INVITATION_INVALID_MESSAGE,
   isInvitationAcceptable,
-} from "@/lib/organisation/validate-invitation";
+} from "@/lib/organisation";
 import { createClient } from "@/lib/supabase/client";
 
 type InvitationRecord = {

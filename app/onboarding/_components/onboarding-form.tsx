@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 
-import { completeOnboarding } from "@/app/actions/onboarding";
+import { completeOnboarding } from "@/app/actions/auth";
 
 type OnboardingFormState = {
   error?: string;

@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import {
   getRouteGuardRedirect,
   isAuthProtectedRoute,
-} from "@/lib/auth/route-access";
+} from "@/lib/auth";
 
 /**
  * Refreshes the Supabase session and enforces auth plus account-type route access.

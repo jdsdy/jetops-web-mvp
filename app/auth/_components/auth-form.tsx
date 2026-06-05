@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 
 import { signInWithPassword, signUp } from "@/app/actions/auth";
-import { ACCOUNT_TYPES } from "@/lib/auth/account-types";
+import { ACCOUNT_TYPES } from "@/lib/auth";
 
 type AuthFormState = {
   error?: string;

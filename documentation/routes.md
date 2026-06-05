@@ -23,7 +23,7 @@ After login, route access is enforced from `profile.account_type`:
 
 Users who attempt a denied route are redirected to their account home (`/portal/organisation` or `/app/personal`). Users with incomplete onboarding are redirected to `/onboarding` when they hit an account-type route.
 
-Enforcement runs in `proxy.ts` via `lib/supabase/middleware.ts`. Logic is covered by tests in `tests/lib/auth/route-access.test.ts`.
+Enforcement runs in `proxy.ts` via `lib/supabase/middleware.ts`. Logic is covered by `tests/lib/auth.test.ts`.
 
 ## Organisation portal navigation
 
@@ -43,4 +43,4 @@ Run unit tests for routing helpers:
 npm test
 ```
 
-Tests live under `tests/` and mirror the source layout (for example, `tests/lib/auth/` for `lib/auth/`). They cover account-type validation, onboarding validation, and redirect paths.
+Tests live in `tests/lib/auth.test.ts` and `tests/lib/organisation.test.ts`.

@@ -4,8 +4,11 @@ import { redirect } from "next/navigation";
 import { InviteMemberForm } from "@/app/portal/organisation/[slug]/_components/invite-member-form";
 import { OrganisationMembers } from "@/app/portal/organisation/[slug]/_components/organisation-members";
 import { LogoutButton } from "@/components/logout-button";
-import { getActiveMembership } from "@/lib/organisation/get-active-membership";
-import { getOrganisationMembers } from "@/lib/organisation/get-organisation-members";
+import {
+  getActiveMembership,
+  getOrganisationMembers,
+  getOrganisationPortalRedirect,
+} from "@/lib/organisation";
 import { createClient } from "@/lib/supabase/server";
 
 type OrganisationPortalSlugPageProps = {

@@ -20,7 +20,7 @@ After the user clicks **Continue**, the app updates the profile and redirects:
 | `organisation` | `/portal/organisation` |
 | `personal` | `/app/personal` |
 
-Redirect logic lives in testable helpers under `lib/auth/`:
+Redirect logic lives in testable helpers in `lib/auth.ts`:
 
 - `validateOnboardingFields` — input validation
 - `isOnboardingComplete` — whether name fields are filled

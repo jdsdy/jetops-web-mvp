@@ -60,4 +60,4 @@ Organisation admins can invite members from the portal page. See [organisation-i
 
 ## Tests
 
-Slug and redirect helpers are covered under `tests/lib/organisation/`.
+Helpers are covered in `tests/lib/organisation.test.ts`.
