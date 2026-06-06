@@ -5,6 +5,10 @@ import { useActionState, useState } from "react";
 import { signInWithPassword, signUp } from "@/app/actions/auth";
 import { ACCOUNT_TYPES } from "@/lib/auth";
 
+type AuthFormProps = {
+  initialError?: string;
+};
+
 type AuthFormState = {
   error?: string;
   message?: string;
@@ -15,7 +19,7 @@ const initialState: AuthFormState = {};
 /**
  * Combined login and signup form for the auth page.
  */
-export function AuthForm() {
+export function AuthForm({ initialError }: AuthFormProps) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [loginState, loginAction, loginPending] = useActionState(
     signInWithPassword,
@@ -64,6 +68,7 @@ export function AuthForm() {
         </button>
       </form>
 
+      {initialError ? <p role="alert">{initialError}</p> : null}
       {state.error ? <p role="alert">{state.error}</p> : null}
       {state.message ? <p>{state.message}</p> : null}
 

@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   assertMemberChangeAllowed,
+  assertMemberEnableAllowed,
+  assertOwnershipTransferAllowed,
   formatMemberDisplayName,
   getOrganisationPortalRedirect,
   isInvitationAcceptable,
   isOrgAdminMembership,
   organisationNameToSlug,
+  resolveOrganisationCallbackRedirect,
   validateInvitePayload,
   validateMemberUpdatePayload,
   validateOrganisationName,
@@ -249,16 +252,24 @@ describe("validateMemberUpdatePayload", () => {
       patch: { status: "disabled", is_admin: true },
     });
   });
+
+  it("rejects direct is_owner updates", () => {
+    expect(validateMemberUpdatePayload({ is_owner: true })).toEqual({
+      valid: false,
+      error: "Use the ownership transfer endpoint to change ownership",
+    });
+  });
 });
 
 describe("assertMemberChangeAllowed", () => {
   const targetMember = {
-    id: 1,
+    id: "member-1",
     user_id: "user-1",
     display_name: "Jane S",
     role: "pilot",
     status: "active",
     is_admin: true,
+    is_owner: false,
   };
 
   it("allows updating another member", () => {
@@ -325,6 +336,201 @@ describe("assertMemberChangeAllowed", () => {
     ).toEqual({
       allowed: false,
       error: "Cannot remove the last active admin",
+    });
+  });
+
+  it("rejects re-enabling a disabled member via patch", () => {
+    expect(
+      assertMemberChangeAllowed({
+        actorUserId: "admin-1",
+        targetMember: { ...targetMember, status: "disabled" },
+        activeAdminCount: 2,
+        patch: { status: "active" },
+      }),
+    ).toEqual({
+      allowed: false,
+      error: "Use POST to re-enable a disabled member",
+    });
+  });
+
+  it("rejects deactivating the organisation owner", () => {
+    expect(
+      assertMemberChangeAllowed({
+        actorUserId: "admin-1",
+        targetMember: { ...targetMember, is_owner: true },
+        activeAdminCount: 2,
+        patch: { status: "disabled" },
+      }),
+    ).toEqual({
+      allowed: false,
+      error: "Cannot change the organisation owner's permissions",
+    });
+  });
+
+  it("rejects demoting the organisation owner", () => {
+    expect(
+      assertMemberChangeAllowed({
+        actorUserId: "admin-1",
+        targetMember: { ...targetMember, is_owner: true },
+        activeAdminCount: 2,
+        patch: { is_admin: false },
+      }),
+    ).toEqual({
+      allowed: false,
+      error: "Cannot change the organisation owner's permissions",
+    });
+  });
+});
+
+describe("assertOwnershipTransferAllowed", () => {
+  const ownerMember = {
+    id: "owner-1",
+    user_id: "owner-user",
+    display_name: "Owner S",
+    role: "admin",
+    status: "active",
+    is_admin: true,
+    is_owner: true,
+  };
+
+  const targetMember = {
+    id: "member-2",
+    user_id: "user-2",
+    display_name: "Jane S",
+    role: "pilot",
+    status: "active",
+    is_admin: false,
+    is_owner: false,
+  };
+
+  it("allows the owner to transfer ownership to an active member", () => {
+    expect(
+      assertOwnershipTransferAllowed({
+        actorMember: ownerMember,
+        targetMember,
+      }),
+    ).toEqual({ allowed: true });
+  });
+
+  it("rejects transfer from a non-owner admin", () => {
+    expect(
+      assertOwnershipTransferAllowed({
+        actorMember: { ...ownerMember, is_owner: false },
+        targetMember,
+      }),
+    ).toEqual({
+      allowed: false,
+      error: "Only the organisation owner can transfer ownership",
+    });
+  });
+
+  it("rejects transfer to a disabled member", () => {
+    expect(
+      assertOwnershipTransferAllowed({
+        actorMember: ownerMember,
+        targetMember: { ...targetMember, status: "disabled" },
+      }),
+    ).toEqual({
+      allowed: false,
+      error: "Ownership can only be transferred to an active member",
+    });
+  });
+
+  it("rejects transfer to the current owner", () => {
+    expect(
+      assertOwnershipTransferAllowed({
+        actorMember: ownerMember,
+        targetMember: { ...ownerMember, id: "owner-1" },
+      }),
+    ).toEqual({
+      allowed: false,
+      error: "Member is already the organisation owner",
+    });
+  });
+});
+
+describe("assertMemberEnableAllowed", () => {
+  it("allows enabling a disabled member", () => {
+    expect(
+      assertMemberEnableAllowed({
+        targetMember: {
+          id: "member-1",
+          user_id: "user-1",
+          display_name: "Jane S",
+          role: "pilot",
+          status: "disabled",
+          is_admin: false,
+          is_owner: false,
+        },
+      }),
+    ).toEqual({ allowed: true });
+  });
+
+  it("rejects enabling a member who is not disabled", () => {
+    expect(
+      assertMemberEnableAllowed({
+        targetMember: {
+          id: "member-1",
+          user_id: "user-1",
+          display_name: "Jane S",
+          role: "pilot",
+          status: "active",
+          is_admin: false,
+          is_owner: false,
+        },
+      }),
+    ).toEqual({
+      allowed: false,
+      error: "Member is not disabled",
+    });
+  });
+});
+
+describe("resolveOrganisationCallbackRedirect", () => {
+  const activeMembership = {
+    role: "pilot",
+    is_admin: false,
+    is_owner: false,
+    status: "active",
+    organisations: {
+      id: "org-1",
+      name: "Jet Operations",
+      slug: "jet-operations",
+    },
+  };
+
+  it("sends users without membership to setup", () => {
+    expect(resolveOrganisationCallbackRedirect(null)).toEqual({
+      outcome: "redirect",
+      path: "/portal/organisation/setup",
+    });
+  });
+
+  it("signs out disabled members", () => {
+    expect(
+      resolveOrganisationCallbackRedirect({
+        ...activeMembership,
+        status: "disabled",
+      }),
+    ).toEqual({ outcome: "disabled" });
+  });
+
+  it("redirects active members to their organisation slug route", () => {
+    expect(resolveOrganisationCallbackRedirect(activeMembership)).toEqual({
+      outcome: "redirect",
+      path: "/portal/organisation/jet-operations",
+    });
+  });
+
+  it("sends pending members to setup", () => {
+    expect(
+      resolveOrganisationCallbackRedirect({
+        ...activeMembership,
+        status: "pending",
+      }),
+    ).toEqual({
+      outcome: "redirect",
+      path: "/portal/organisation/setup",
     });
   });
 });

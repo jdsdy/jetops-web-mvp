@@ -36,11 +36,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Use root `proxy.ts` (not deprecated `middleware.ts`) for Supabase session refresh via `@supabase/ssr`.
 - Supabase project: Jet Ops MVP (`wohclkrdcyykdjqzczgy`); copy `.env.example` to `.env.local` for env vars.
 - Account types are `organisation` or `personal`; signup stores `account_type` in user metadata and a trigger creates `profiles`.
-- Routes: `/`, `/auth`, `/auth/callback`, `/onboarding`, `/auth/accept-invite`, `/auth/accept-invite/confirm`, `/portal/organisation`, `/portal/organisation/setup`, `/portal/organisation/{slug}`, `/app/personal`, `/app/organisation`.
-- Organisation membership uses `organisation_members.status` (`active`, `pending`, `disabled`); portal resolves via `getActiveMembership`.
+- Routes: `/`, `/auth`, `/auth/callback`, `/onboarding`, `/auth/accept-invite`, `/auth/accept-invite/confirm`, `/portal/callback`, `/portal/organisation`, `/portal/organisation/setup`, `/portal/organisation/{slug}`, `/app/personal`, `/app/organisation`.
+- Organisation membership uses `organisation_members.status` (`active`, `pending`, `disabled`); portal resolves via `getUserOrganisationMembership` on `/portal/callback`.
 - Organisation invites use `organisation_invitations` plus `inviteUserByEmail`; cancel invite deletes the invitation row and pending membership row; see `documentation/organisation-invites.md`.
-- Post-onboarding redirect: `organisation` → `/portal/organisation`, `personal` → `/app/personal`.
+- Post-onboarding redirect: `organisation` → `/portal/callback`, `personal` → `/app/personal`.
 - Account-type route protection in `proxy.ts` (`lib/auth.ts`); organisation vs personal routes are mutually exclusive.
 - Unit tests use Vitest (`npm test`); domain helpers are tested in `tests/lib/auth.test.ts` and `tests/lib/organisation.test.ts`.
-- Admin user management on `/portal/organisation/{slug}` via `user-management.tsx`; guardrails: no self-deactivate/demote, no removing last active admin.
+- Admin user management on `/portal/organisation/{slug}` via `user-management.tsx`; guardrails: no self-deactivate/demote, no removing last active admin, organisation owner permissions cannot be revoked. The creator receives `is_owner`; ownership is transferable via `POST .../members/{memberId}/ownership`.
+- Disabled organisation members are signed out at `/portal/callback` with message on `/auth`.
 - Feature docs: `documentation/authentication.md`, `documentation/onboarding.md`, `documentation/routes.md`, `documentation/organisation-invites.md`, `documentation/organisation-members.md`.

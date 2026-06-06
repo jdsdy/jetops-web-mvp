@@ -23,18 +23,28 @@ type ApiErrorResponse = {
 
 /**
  * Admin controls for organisation members and pending invites.
+ *
+ * Loads member and invite data on mount, then exposes actions that call the
+ * organisation members and invites API routes.
  */
 export function UserManagement({ slug, currentUserId }: UserManagementProps) {
   const [members, setMembers] = useState<OrganisationMember[]>([]);
   const [invites, setInvites] = useState<PendingInvite[]>([]);
-  const [roleDrafts, setRoleDrafts] = useState<Record<number, string>>({});
+  const [roleDrafts, setRoleDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [invitePending, setInvitePending] = useState(false);
-  const [memberPendingId, setMemberPendingId] = useState<number | null>(null);
+  const [memberPendingId, setMemberPendingId] = useState<string | null>(null);
   const [invitePendingId, setInvitePendingId] = useState<string | null>(null);
 
+  /**
+   * Loads members and pending invites for the organisation.
+   *
+   * - Fetches `/members` and `/invites` in parallel
+   * - Sets an error and stops loading when either request fails
+   * - Seeds local role draft state from the returned member list
+   */
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -84,6 +94,13 @@ export function UserManagement({ slug, currentUserId }: UserManagementProps) {
     void loadData();
   }, [loadData]);
 
+  /**
+   * Sends a new organisation invite from the invite form.
+   *
+   * - Reads form fields and POSTs to `/invites`
+   * - Shows a success message and resets the form on success
+   * - Reloads members and invites so pending rows stay in sync
+   */
   async function handleInviteSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setInvitePending(true);
@@ -116,7 +133,8 @@ export function UserManagement({ slug, currentUserId }: UserManagementProps) {
     await loadData();
   }
 
-  async function handleRoleSave(memberId: number) {
+  /** PATCHes the edited role for a member and reloads the member list. */
+  async function handleRoleSave(memberId: string) {
     setMemberPendingId(memberId);
     setError(null);
     setMessage(null);
@@ -143,6 +161,7 @@ export function UserManagement({ slug, currentUserId }: UserManagementProps) {
     await loadData();
   }
 
+  /** Toggles a member's admin flag via PATCH and reloads the member list. */
   async function handleAdminToggle(member: OrganisationMember) {
     setMemberPendingId(member.id);
     setError(null);
@@ -170,7 +189,13 @@ export function UserManagement({ slug, currentUserId }: UserManagementProps) {
     await loadData();
   }
 
-  async function handleDeactivate(memberId: number) {
+  /**
+   * Deactivates a member via DELETE.
+   *
+   * - Sets the member's status to disabled on the server
+   * - Triggers the auth ban side effect handled by the API route
+   */
+  async function handleDeactivate(memberId: string) {
     setMemberPendingId(memberId);
     setError(null);
     setMessage(null);
@@ -195,6 +220,75 @@ export function UserManagement({ slug, currentUserId }: UserManagementProps) {
     await loadData();
   }
 
+  /**
+   * Re-enables a disabled member via POST.
+   *
+   * - Sets the member's status back to active on the server
+   * - Clears the auth ban side effect handled by the API route
+   */
+  async function handleEnable(memberId: string) {
+    setMemberPendingId(memberId);
+    setError(null);
+    setMessage(null);
+
+    const response = await fetch(
+      `/api/organisations/${slug}/members/${memberId}`,
+      {
+        method: "POST",
+      },
+    );
+
+    const result = (await response.json()) as ApiErrorResponse;
+
+    if (!response.ok) {
+      setError(result.error ?? "Failed to enable member");
+      setMemberPendingId(null);
+      return;
+    }
+
+    setMessage("Member enabled.");
+    setMemberPendingId(null);
+    await loadData();
+  }
+
+  /**
+   * Transfers organisation ownership to another active member.
+   *
+   * - POSTs to `/members/{memberId}/ownership`
+   * - Only available in the UI when the current user is the owner
+   * - Reloads members so owner badges and action buttons update
+   */
+  async function handleTransferOwnership(memberId: string) {
+    setMemberPendingId(memberId);
+    setError(null);
+    setMessage(null);
+
+    const response = await fetch(
+      `/api/organisations/${slug}/members/${memberId}/ownership`,
+      {
+        method: "POST",
+      },
+    );
+
+    const result = (await response.json()) as ApiErrorResponse;
+
+    if (!response.ok) {
+      setError(result.error ?? "Failed to transfer ownership");
+      setMemberPendingId(null);
+      return;
+    }
+
+    setMessage("Ownership transferred.");
+    setMemberPendingId(null);
+    await loadData();
+  }
+
+  /**
+   * Cancels a pending invite via DELETE.
+   *
+   * - Removes the invitation row and its pending membership row on the server
+   * - Reloads members and invites after a successful cancellation
+   */
   async function handleCancelInvite(inviteId: string) {
     setInvitePendingId(inviteId);
     setError(null);
@@ -223,6 +317,9 @@ export function UserManagement({ slug, currentUserId }: UserManagementProps) {
     return <p>Loading user management...</p>;
   }
 
+  const currentUserIsOwner =
+    members.find((member) => member.user_id === currentUserId)?.is_owner ?? false;
+
   return (
     <section>
       <h2>User management</h2>
@@ -231,55 +328,79 @@ export function UserManagement({ slug, currentUserId }: UserManagementProps) {
       {message ? <p>{message}</p> : null}
 
       <section>
-        <h3>Active members</h3>
+        <h3>Members</h3>
 
         {members.length === 0 ? (
-          <p>No active members found.</p>
+          <p>No members found.</p>
         ) : (
           <ul>
             {members.map((member) => (
               <li key={member.id}>
                 <span>{member.display_name ?? "Unknown member"}</span>
-                <span> — </span>
-                <input
-                  aria-label={`Role for ${member.display_name ?? "member"}`}
-                  value={roleDrafts[member.id] ?? member.role}
-                  onChange={(event) =>
-                    setRoleDrafts((current) => ({
-                      ...current,
-                      [member.id]: event.target.value,
-                    }))
-                  }
-                />
-                <button
-                  type="button"
-                  disabled={memberPendingId === member.id}
-                  onClick={() => void handleRoleSave(member.id)}
-                >
-                  Save role
-                </button>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={member.is_admin}
-                    disabled={
-                      memberPendingId === member.id ||
-                      member.user_id === currentUserId
-                    }
-                    onChange={() => void handleAdminToggle(member)}
-                  />
-                  Admin
-                </label>
-                <button
-                  type="button"
-                  disabled={
-                    memberPendingId === member.id ||
-                    member.user_id === currentUserId
-                  }
-                  onClick={() => void handleDeactivate(member.id)}
-                >
-                  Deactivate
-                </button>
+                <span> — {member.status}</span>
+                {member.is_owner ? <span> (owner)</span> : null}
+                {member.status === "disabled" ? (
+                  <button
+                    type="button"
+                    disabled={memberPendingId === member.id}
+                    onClick={() => void handleEnable(member.id)}
+                  >
+                    Enable
+                  </button>
+                ) : (
+                  <>
+                    <input
+                      aria-label={`Role for ${member.display_name ?? "member"}`}
+                      value={roleDrafts[member.id] ?? member.role}
+                      onChange={(event) =>
+                        setRoleDrafts((current) => ({
+                          ...current,
+                          [member.id]: event.target.value,
+                        }))
+                      }
+                    />
+                    <button
+                      type="button"
+                      disabled={memberPendingId === member.id}
+                      onClick={() => void handleRoleSave(member.id)}
+                    >
+                      Save role
+                    </button>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={member.is_admin}
+                        disabled={
+                          memberPendingId === member.id ||
+                          member.user_id === currentUserId ||
+                          member.is_owner
+                        }
+                        onChange={() => void handleAdminToggle(member)}
+                      />
+                      Admin
+                    </label>
+                    <button
+                      type="button"
+                      disabled={
+                        memberPendingId === member.id ||
+                        member.user_id === currentUserId ||
+                        member.is_owner
+                      }
+                      onClick={() => void handleDeactivate(member.id)}
+                    >
+                      Deactivate
+                    </button>
+                    {currentUserIsOwner && !member.is_owner ? (
+                      <button
+                        type="button"
+                        disabled={memberPendingId === member.id}
+                        onClick={() => void handleTransferOwnership(member.id)}
+                      >
+                        Transfer ownership
+                      </button>
+                    ) : null}
+                  </>
+                )}
               </li>
             ))}
           </ul>

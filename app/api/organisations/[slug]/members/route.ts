@@ -1,17 +1,20 @@
 import { NextResponse } from "next/server";
 
 import {
-  getActiveOrganisationMembers,
+  getListedOrganisationMembers,
   requireOrgAdmin,
 } from "@/lib/organisation";
 import { createClient } from "@/lib/supabase/server";
 
+/**
+ * Returns a JSON error response with the given HTTP status.
+ */
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
 /**
- * Lists active organisation members for the current admin.
+ * Lists active and disabled organisation members for the current admin.
  */
 export async function GET(
   _request: Request,
@@ -37,7 +40,7 @@ export async function GET(
     return jsonError("Forbidden", 403);
   }
 
-  const members = await getActiveOrganisationMembers(
+  const members = await getListedOrganisationMembers(
     supabase,
     membership.organisations.id,
   );

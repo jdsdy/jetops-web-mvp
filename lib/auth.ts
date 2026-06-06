@@ -36,7 +36,16 @@ export type InviteUrlParams = {
   refreshToken: string | null;
 };
 
-const ORGANISATION_ROUTE_PREFIXES = ["/portal/organisation", "/app/organisation"];
+export const DISABLED_MEMBER_AUTH_ERROR = "disabled_access";
+
+export const DISABLED_MEMBER_MESSAGE =
+  "Your account access has been disabled, please contact your system administrator";
+
+const ORGANISATION_ROUTE_PREFIXES = [
+  "/portal/callback",
+  "/portal/organisation",
+  "/app/organisation",
+];
 const PERSONAL_ROUTE_PREFIXES = ["/app/personal"];
 
 /**
@@ -82,7 +91,7 @@ export function getPostOnboardingPath(accountType: string): string {
   }
 
   const paths: Record<AccountType, string> = {
-    organisation: "/portal/organisation",
+    organisation: "/portal/callback",
     personal: "/app/personal",
   };
 

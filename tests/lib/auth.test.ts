@@ -74,8 +74,8 @@ describe("isOnboardingComplete", () => {
 });
 
 describe("getPostOnboardingPath", () => {
-  it("redirects organisation accounts to the organisation portal", () => {
-    expect(getPostOnboardingPath("organisation")).toBe("/portal/organisation");
+  it("redirects organisation accounts to the organisation portal callback", () => {
+    expect(getPostOnboardingPath("organisation")).toBe("/portal/callback");
   });
 
   it("redirects personal accounts to the personal app", () => {
@@ -98,14 +98,14 @@ describe("getRedirectForProfile", () => {
     ).toBe("/onboarding");
   });
 
-  it("sends completed organisation profiles to the organisation portal", () => {
+  it("sends completed organisation profiles to the organisation portal callback", () => {
     expect(
       getRedirectForProfile({
         f_name: "Jane",
         l_initial: "S",
         account_type: "organisation",
       }),
-    ).toBe("/portal/organisation");
+    ).toBe("/portal/callback");
   });
 
   it("sends completed personal profiles to the personal app", () => {
@@ -185,7 +185,7 @@ describe("getRouteGuardRedirect", () => {
         { f_name: "Jane", l_initial: "S", account_type: "organisation" },
         "/app/personal",
       ),
-    ).toBe("/portal/organisation");
+    ).toBe("/portal/callback");
   });
 
   it("redirects personal users away from organisation routes", () => {

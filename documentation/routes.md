@@ -5,7 +5,8 @@
 | `/` | No | Home page with **Go to login** |
 | `/auth` | No | Login and signup form |
 | `/onboarding` | Yes | Name collection step |
-| `/portal/organisation` | Yes (organisation) | Resolves membership and redirects |
+| `/portal/callback` | Yes (organisation) | Resolves membership; signs out disabled users |
+| `/portal/organisation` | Yes (organisation) | Redirects to `/portal/callback` |
 | `/portal/organisation/setup` | Yes (organisation) | Create organisation form |
 | `/portal/organisation/{slug}` | Yes (organisation) | Organisation portal; admins get user management, others see read-only members |
 | `/auth/accept-invite` | No (until token verified) | Invite acceptance and password setup |
@@ -18,10 +19,10 @@ After login, route access is enforced from `profile.account_type`:
 
 | Account type | Allowed routes | Denied routes |
 | --- | --- | --- |
-| `organisation` | `/portal/organisation`, `/app/organisation` | `/app/personal` |
+| `organisation` | `/portal/callback`, `/portal/organisation`, `/app/organisation` | `/app/personal` |
 | `personal` | `/app/personal` | `/portal/organisation`, `/app/organisation` |
 
-Users who attempt a denied route are redirected to their account home (`/portal/organisation` or `/app/personal`). Users with incomplete onboarding are redirected to `/onboarding` when they hit an account-type route.
+Users who attempt a denied route are redirected to their account home (`/portal/callback` or `/app/personal`). Users with incomplete onboarding are redirected to `/onboarding` when they hit an account-type route.
 
 Enforcement runs in `proxy.ts` via `lib/supabase/middleware.ts`. Logic is covered by `tests/lib/auth.test.ts`.
 
@@ -51,7 +52,9 @@ Organisation management APIs live under `/api/organisations/{slug}/`. Each resou
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/api/organisations/{slug}/members` | List active members (admin) |
+| `GET` | `/api/organisations/{slug}/members` | List active and disabled members (admin) |
+| `POST` | `/api/organisations/{slug}/members/{memberId}` | Re-enable disabled member |
+| `POST` | `/api/organisations/{slug}/members/{memberId}/ownership` | Transfer organisation ownership |
 | `PATCH` | `/api/organisations/{slug}/members/{memberId}` | Update role, status, or admin flag |
 | `DELETE` | `/api/organisations/{slug}/members/{memberId}` | Deactivate member |
 | `GET` | `/api/organisations/{slug}/invites` | List pending invites (admin) |

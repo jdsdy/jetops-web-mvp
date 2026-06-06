@@ -124,7 +124,7 @@ Routes:
 
 | Variable | Purpose |
 | --- | --- |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-only key for `inviteUserByEmail` and invite record creation |
+| `SUPABASE_SECRET_KEY` | Server-only secret key for `inviteUserByEmail`, member updates, and auth admin calls |
 | `NEXT_PUBLIC_SITE_URL` | Used for invite `redirectTo` URL |
 
 ## Supabase configuration

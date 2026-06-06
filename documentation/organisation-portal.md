@@ -1,6 +1,6 @@
 # Organisation portal
 
-Organisation users land on `/portal/organisation`, which resolves their active membership and redirects accordingly.
+Organisation users land on `/portal/callback` after login, which resolves their membership and redirects accordingly. `/portal/organisation` redirects to the same callback.
 
 ## Membership lookup
 
@@ -25,11 +25,25 @@ const { data: membership } = await supabase
   .maybeSingle();
 ```
 
+## Row level security
+
+`organisation_members` has RLS enabled with two SELECT policies:
+
+| Policy | Rule |
+| --- | --- |
+| Members can view their own memberships | `user_id = auth.uid()` |
+| Members can view organisation members | `private.is_active_org_member(organisation_id, auth.uid())` |
+
+The helper `private.is_active_org_member` checks for an **active** membership in the same organisation. Admin mutations (invite, deactivate, update role) use the service role after an admin check in API routes.
+
+`organisations` also has RLS enabled. Members can read an organisation when `private.is_org_member(id, auth.uid())` is true (any membership status), which allows embedded `organisations!inner (...)` selects in membership queries to succeed.
+
 ## Routes
 
 | Path | Behaviour |
 | --- | --- |
-| `/portal/organisation` | Redirects to setup or `/portal/organisation/{slug}` |
+| `/portal/callback` | Resolves membership; disabled users are signed out with an error message |
+| `/portal/organisation` | Redirects to `/portal/callback` |
 | `/portal/organisation/setup` | Create organisation form (skipped if membership exists) |
 | `/portal/organisation/{slug}` | Organisation portal for an active member |
 

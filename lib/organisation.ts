@@ -1,8 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { createAdminClient } from "@/lib/supabase/admin";
+
 const MEMBERSHIP_SELECT = `
   role,
   is_admin,
+  is_owner,
   status,
   organisations!inner (
     id,
@@ -17,7 +20,8 @@ const MEMBERS_LIST_SELECT = `
   display_name,
   role,
   status,
-  is_admin
+  is_admin,
+  is_owner
 ` as const;
 
 const MEMBER_STATUSES = ["active", "pending", "disabled"] as const;
@@ -30,6 +34,7 @@ export const INVITATION_INVALID_MESSAGE = "This invite is no longer valid.";
 export type OrganisationMembership = {
   role: string;
   is_admin: boolean;
+  is_owner: boolean;
   status: string;
   organisations: {
     id: string;
@@ -39,12 +44,13 @@ export type OrganisationMembership = {
 };
 
 export type OrganisationMember = {
-  id: number;
+  id: string;
   user_id: string;
   display_name: string | null;
   role: string;
   status: string;
   is_admin: boolean;
+  is_owner: boolean;
 };
 
 export type MemberUpdatePatch = {
@@ -229,6 +235,13 @@ export function validateMemberUpdatePayload(
     patch.is_admin = body.is_admin;
   }
 
+  if ("is_owner" in body) {
+    return {
+      valid: false,
+      error: "Use the ownership transfer endpoint to change ownership",
+    };
+  }
+
   if (Object.keys(patch).length === 0) {
     return { valid: false, error: "At least one field is required" };
   }
@@ -266,6 +279,86 @@ export function assertMemberChangeAllowed(input: {
     return {
       allowed: false,
       error: "Cannot remove the last active admin",
+    };
+  }
+
+  if (patch.status === "active" && targetMember.status === "disabled") {
+    return {
+      allowed: false,
+      error: "Use POST to re-enable a disabled member",
+    };
+  }
+
+  if (
+    targetMember.is_owner &&
+    (patch.status === "disabled" || patch.is_admin === false)
+  ) {
+    return {
+      allowed: false,
+      error: "Cannot change the organisation owner's permissions",
+    };
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * Returns whether the organisation owner may transfer ownership to another member.
+ */
+export function assertOwnershipTransferAllowed(input: {
+  actorMember: OrganisationMember;
+  targetMember: OrganisationMember;
+}): MemberChangeAllowedResult {
+  const { actorMember, targetMember } = input;
+
+  if (!actorMember.is_owner) {
+    return {
+      allowed: false,
+      error: "Only the organisation owner can transfer ownership",
+    };
+  }
+
+  if (actorMember.status !== "active") {
+    return {
+      allowed: false,
+      error: "Only an active owner can transfer ownership",
+    };
+  }
+
+  if (targetMember.is_owner) {
+    return {
+      allowed: false,
+      error: "Member is already the organisation owner",
+    };
+  }
+
+  if (targetMember.status !== "active") {
+    return {
+      allowed: false,
+      error: "Ownership can only be transferred to an active member",
+    };
+  }
+
+  if (actorMember.id === targetMember.id) {
+    return {
+      allowed: false,
+      error: "Cannot transfer ownership to yourself",
+    };
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * Returns whether an admin may re-enable a disabled member.
+ */
+export function assertMemberEnableAllowed(input: {
+  targetMember: OrganisationMember;
+}): MemberChangeAllowedResult {
+  if (input.targetMember.status !== "disabled") {
+    return {
+      allowed: false,
+      error: "Member is not disabled",
     };
   }
 
@@ -326,6 +419,7 @@ export function isOrgAdminMembership(membership: {
 function normaliseMembershipRow(data: {
   role: string;
   is_admin: boolean;
+  is_owner: boolean;
   status: string;
   organisations:
     | OrganisationMembership["organisations"]
@@ -342,6 +436,7 @@ function normaliseMembershipRow(data: {
   return {
     role: data.role,
     is_admin: data.is_admin,
+    is_owner: data.is_owner,
     status: data.status,
     organisations: organisation,
   };
@@ -396,6 +491,27 @@ export async function getActiveOrganisationMembers(
 }
 
 /**
+ * Loads active and disabled members for an organisation by organisation ID.
+ */
+export async function getListedOrganisationMembers(
+  supabase: SupabaseClient,
+  organisationId: string,
+): Promise<OrganisationMember[]> {
+  const { data, error } = await supabase
+    .from("organisation_members")
+    .select(MEMBERS_LIST_SELECT)
+    .eq("organisation_id", organisationId)
+    .in("status", ["active", "disabled"])
+    .order("display_name", { ascending: true });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data;
+}
+
+/**
  * Loads all members for an organisation by organisation ID.
  */
 export async function getOrganisationMembers(
@@ -413,6 +529,96 @@ export async function getOrganisationMembers(
   }
 
   return data;
+}
+
+/**
+ * Resolves where an organisation user should go after the portal callback check.
+ */
+export function resolveOrganisationCallbackRedirect(
+  membership: OrganisationMembership | null,
+): { outcome: "disabled" } | { outcome: "redirect"; path: string } {
+  if (!membership) {
+    return { outcome: "redirect", path: "/portal/organisation/setup" };
+  }
+
+  if (membership.status === "disabled") {
+    return { outcome: "disabled" };
+  }
+
+  if (membership.status === "active") {
+    return {
+      outcome: "redirect",
+      path: `/portal/organisation/${membership.organisations.slug}`,
+    };
+  }
+
+  return { outcome: "redirect", path: "/portal/organisation/setup" };
+}
+
+/**
+ * Loads a user's organisation membership regardless of status.
+ */
+export async function getUserOrganisationMembership(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<OrganisationMembership | null> {
+  const { data } = await supabase
+    .from("organisation_members")
+    .select(MEMBERSHIP_SELECT)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!data) {
+    return null;
+  }
+
+  return normaliseMembershipRow(data);
+}
+
+/** Ban duration applied when an organisation member is deactivated. */
+export const DISABLED_MEMBER_BAN_DURATION = "876000h";
+
+/** Ban duration applied when an organisation member is re-enabled. */
+export const ENABLED_MEMBER_BAN_DURATION = "none";
+
+/**
+ * Bans a deactivated organisation member from signing in again.
+ */
+export async function revokeOrganisationMemberAccess(
+  userId: string,
+): Promise<{ error: string | null }> {
+  const adminClient = createAdminClient();
+
+  const { error: banError } = await adminClient.auth.admin.updateUserById(userId, {
+    ban_duration: DISABLED_MEMBER_BAN_DURATION,
+  });
+
+  if (banError) {
+    return { error: banError.message };
+  }
+
+  return { error: null };
+}
+
+/**
+ * Clears the auth ban when a disabled organisation member is re-enabled.
+ */
+export async function restoreOrganisationMemberAccess(
+  userId: string,
+): Promise<{ error: string | null }> {
+  const adminClient = createAdminClient();
+
+  const { error: banError } = await adminClient.auth.admin.updateUserById(userId, {
+    ban_duration: ENABLED_MEMBER_BAN_DURATION,
+  });
+
+  if (banError) {
+    return { error: banError.message };
+  }
+
+  return { error: null };
 }
 
 /**

@@ -19,6 +19,9 @@ type InviteRequestBody = {
   role?: string;
 };
 
+/**
+ * Returns a JSON error response with the given HTTP status.
+ */
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
