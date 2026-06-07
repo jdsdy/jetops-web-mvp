@@ -11,7 +11,9 @@
 | `/portal/organisation/{slug}` | Yes (organisation) | Organisation portal; admins get user management, others see read-only members |
 | `/auth/accept-invite` | No (until token verified) | Invite acceptance and password setup |
 | `/app/personal` | Yes (personal) | Personal app shell |
-| `/app/organisation` | Yes (organisation) | Organisation app shell |
+| `/app/organisation` | Yes (organisation) | Redirects to `/app/organisation/{slug}` for active members |
+| `/app/organisation/{slug}` | Yes (organisation) | Organisation app home; create flight form |
+| `/app/organisation/{slug}/flights` | Yes (organisation) | Flight analysis status page (`?id=` and `?jobId=` required) |
 
 ## Account-type route protection
 
@@ -55,6 +57,7 @@ Organisation management APIs live under `/api/organisations/{slug}/`. Each resou
 | `GET` | `/api/aircraft-reference` | List aircraft reference grouped by manufacturer (authenticated) |
 | `GET` | `/api/organisations/{slug}/fleet` | List organisation fleet (active member) |
 | `POST` | `/api/organisations/{slug}/fleet` | Add fleet aircraft (admin) |
+| `POST` | `/api/organisations/{slug}/flights` | Create flight with PDF upload and trigger analysis (active member) |
 | `PATCH` | `/api/organisations/{slug}/fleet/{aircraftId}` | Update fleet aircraft (admin) |
 | `DELETE` | `/api/organisations/{slug}/fleet/{aircraftId}` | Delete fleet aircraft (admin) |
 | `GET` | `/api/organisations/{slug}/members` | List active and disabled members (admin) |
@@ -66,4 +69,4 @@ Organisation management APIs live under `/api/organisations/{slug}/`. Each resou
 | `POST` | `/api/organisations/{slug}/invites` | Send invite |
 | `DELETE` | `/api/organisations/{slug}/invites/{inviteId}` | Cancel invite |
 
-See [organisation-members.md](./organisation-members.md), [organisation-invites.md](./organisation-invites.md), and [fleet.md](./fleet.md).
+See [organisation-members.md](./organisation-members.md), [organisation-invites.md](./organisation-invites.md), [fleet.md](./fleet.md), and [flights.md](./flights.md).

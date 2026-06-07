@@ -50,7 +50,7 @@ export default async function OrganisationPortalSlugPage({
         <OrganisationMembers members={activeMembers} />
       )}
       <FleetSection slug={slug} isAdmin={membership.is_admin} />
-      <Link href="/app/organisation">
+      <Link href={`/app/organisation/${slug}`}>
         <button type="button">Go to app/organisation</button>
       </Link>
       <LogoutButton />
