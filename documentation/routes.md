@@ -52,6 +52,11 @@ Organisation management APIs live under `/api/organisations/{slug}/`. Each resou
 
 | Method | Path | Description |
 | --- | --- | --- |
+| `GET` | `/api/aircraft-reference` | List aircraft reference grouped by manufacturer (authenticated) |
+| `GET` | `/api/organisations/{slug}/fleet` | List organisation fleet (active member) |
+| `POST` | `/api/organisations/{slug}/fleet` | Add fleet aircraft (admin) |
+| `PATCH` | `/api/organisations/{slug}/fleet/{aircraftId}` | Update fleet aircraft (admin) |
+| `DELETE` | `/api/organisations/{slug}/fleet/{aircraftId}` | Delete fleet aircraft (admin) |
 | `GET` | `/api/organisations/{slug}/members` | List active and disabled members (admin) |
 | `POST` | `/api/organisations/{slug}/members/{memberId}` | Re-enable disabled member |
 | `POST` | `/api/organisations/{slug}/members/{memberId}/ownership` | Transfer organisation ownership |
@@ -61,4 +66,4 @@ Organisation management APIs live under `/api/organisations/{slug}/`. Each resou
 | `POST` | `/api/organisations/{slug}/invites` | Send invite |
 | `DELETE` | `/api/organisations/{slug}/invites/{inviteId}` | Cancel invite |
 
-See [organisation-members.md](./organisation-members.md) and [organisation-invites.md](./organisation-invites.md).
+See [organisation-members.md](./organisation-members.md), [organisation-invites.md](./organisation-invites.md), and [fleet.md](./fleet.md).

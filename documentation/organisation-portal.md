@@ -67,6 +67,12 @@ Organisation admins see the **User management** section instead of the read-only
 
 Admins can update roles, toggle admin status, deactivate members, cancel pending invites, and send new invites. See [organisation-members.md](./organisation-members.md) and [organisation-invites.md](./organisation-invites.md).
 
+## Fleet
+
+All active members on `/portal/organisation/{slug}` see the organisation fleet (manufacturer, model, tail number) via `FleetSection`.
+
+Admins can add aircraft using manufacturer/model dropdowns backed by `GET /api/aircraft-reference` and `POST /api/organisations/{slug}/fleet`. Each fleet row has a **Manage** button that opens a dialog for updating tail number, seats, RNAV equipped, or deleting the aircraft via `PATCH` and `DELETE` on `/api/organisations/{slug}/fleet/{aircraftId}`. See [fleet.md](./fleet.md).
+
 ## Invites
 
 Organisation admins manage invites from the user management section. See [organisation-invites.md](./organisation-invites.md).

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { FleetSection } from "@/app/portal/organisation/[slug]/_components/fleet-section";
 import { OrganisationMembers } from "@/app/portal/organisation/[slug]/_components/organisation-members";
 import { UserManagement } from "@/app/portal/organisation/[slug]/_components/user-management";
 import { LogoutButton } from "@/components/logout-button";
@@ -48,6 +49,7 @@ export default async function OrganisationPortalSlugPage({
       ) : (
         <OrganisationMembers members={activeMembers} />
       )}
+      <FleetSection slug={slug} isAdmin={membership.is_admin} />
       <Link href="/app/organisation">
         <button type="button">Go to app/organisation</button>
       </Link>
