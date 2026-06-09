@@ -66,6 +66,7 @@ export default async function OrganisationFlightsPage({
     <main>
       <h1>/app/organisation/{membership.organisations.id}/flights</h1>
       <FlightExtractionDetailsSection
+        organisationId={membership.organisations.id}
         flightId={flightId}
         jobId={jobId}
         initialDetails={extractionDetails}

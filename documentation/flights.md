@@ -83,6 +83,39 @@ On failure after partial writes, uploaded objects and DB rows are rolled back.
 | 502 | External analysis service error |
 | 500 | Database, storage, or missing API key |
 
+### `PATCH /api/organisations/{organisationId}/flights/{flightId}`
+
+Updates extracted flight and flight plan fields while the linked analysis job is `awaiting_confirmation`.
+
+Auth: active organisation member.
+
+Request: `application/json`
+
+| Field | Type |
+| --- | --- |
+| `job_id` | uuid (`analysis_jobs.id` for the current flight plan) |
+| `departure_icao` | string or null |
+| `arrival_icao` | string or null |
+| `source_app` | string or null |
+| `route` | string or null |
+| `cruise_level` | string or null |
+| `dept_rwy` | string or null |
+| `arr_rwy` | string or null |
+| `planned_dept_time` | ISO datetime string in UTC or null |
+| `planned_arr_time` | ISO datetime string in UTC or null |
+| `alt_icao` | string or null |
+
+Response: `200` with the saved extraction fields.
+
+| Status | Meaning |
+| --- | --- |
+| 400 | Invalid payload or job/plan mismatch |
+| 401 | No authenticated session |
+| 403 | User is not an active member |
+| 404 | Flight, plan, or job not found |
+| 409 | Job is not awaiting confirmation |
+| 500 | Database error |
+
 ## App UI
 
 ### `/app/organisation/{organisationId}`
@@ -99,6 +132,7 @@ On failure after partial writes, uploaded objects and DB rows are rolled back.
 - Performs an initial fetch fallback so fast status transitions are not missed
 - Displays the analysis job status (updated via Realtime on `analysis_jobs` only)
 - Loads extracted fields from the database when the job is already `awaiting_confirmation` on first check, or when status changes from `processing_extraction` to `awaiting_confirmation`
+- At `awaiting_confirmation`, extracted flight plan fields are editable; members can save corrections via `PATCH /api/organisations/{organisationId}/flights/{flightId}` before triggering analysis
 - Also shows extraction for later statuses (`processing_analysis`, `complete`) using the server-rendered initial values
 - Loads NOTAMs from `raw_notams` using both `analysis_job_id` and `flight_plan_id` when extraction is shown
 - Displays the NOTAM count with an expand/collapse list; multiline NOTAM fields render `{\n}` placeholders as line breaks

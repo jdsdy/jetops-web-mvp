@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { FlightExtractionForm } from "@/app/app/organisation/[organisationId]/flights/_components/flight-extraction-form";
 import { RawNotamsList } from "@/app/app/organisation/[organisationId]/flights/_components/raw-notams-list";
 import {
   getFlightExtractionResult,
   getRawNotamsForAnalysis,
   isExtractionReadyJobStatus,
+  isFlightExtractionEditableJobStatus,
   type FlightExtractionDetails,
   type RawNotam,
 } from "@/lib/flights";
@@ -15,6 +17,7 @@ import { createClient } from "@/lib/supabase/client";
 const TERMINAL_JOB_STATUSES = ["complete", "failed"] as const;
 
 type FlightExtractionDetailsProps = {
+  organisationId: string;
   flightId: string;
   initialDetails: FlightExtractionDetails;
   jobId: string;
@@ -23,22 +26,6 @@ type FlightExtractionDetailsProps = {
 type AnalysisJob = {
   status: string;
 };
-
-const EXTRACTION_FIELDS: {
-  key: keyof FlightExtractionDetails;
-  label: string;
-}[] = [
-  { key: "departure_icao", label: "Departure ICAO" },
-  { key: "arrival_icao", label: "Arrival ICAO" },
-  { key: "source_app", label: "Source app" },
-  { key: "route", label: "Route" },
-  { key: "cruise_level", label: "Cruise level" },
-  { key: "dept_rwy", label: "Departure runway" },
-  { key: "arr_rwy", label: "Arrival runway" },
-  { key: "planned_dept_time", label: "Planned departure time" },
-  { key: "planned_arr_time", label: "Planned arrival time" },
-  { key: "alt_icao", label: "Alternate ICAO" },
-];
 
 /**
  * Returns whether an analysis job has reached a terminal status.
@@ -50,22 +37,16 @@ function isTerminalJobStatus(status: string): boolean {
 }
 
 /**
- * Formats an extracted value for display.
- */
-function formatExtractedValue(value: string | null): string {
-  return value?.trim() ? value : "Not extracted yet";
-}
-
-/**
  * Tracks analysis job status and loads extracted fields once extraction completes.
  */
 export function FlightExtractionDetailsSection({
+  organisationId,
   flightId,
   initialDetails,
   jobId,
 }: FlightExtractionDetailsProps) {
   const [jobStatus, setJobStatus] = useState<string | null>(null);
-  const [details, setDetails] = useState(initialDetails);
+  const [savedDetails, setSavedDetails] = useState(initialDetails);
   const [notams, setNotams] = useState<RawNotam[]>([]);
   const [showExtraction, setShowExtraction] = useState(false);
   const extractionLoadedRef = useRef(false);
@@ -85,7 +66,7 @@ export function FlightExtractionDetailsSection({
     );
 
     extractionLoadedRef.current = true;
-    setDetails(result.details);
+    setSavedDetails(result.details);
     setNotams(nextNotams);
     setShowExtraction(true);
   }, [flightId, jobId]);
@@ -169,6 +150,9 @@ export function FlightExtractionDetailsSection({
     };
   }, [handleJobStatus, jobId]);
 
+  const editable =
+    jobStatus !== null && isFlightExtractionEditableJobStatus(jobStatus);
+
   return (
     <>
       <section>
@@ -178,17 +162,14 @@ export function FlightExtractionDetailsSection({
 
       {showExtraction ? (
         <>
-          <section>
-            <h2>Extracted flight plan</h2>
-            <dl>
-              {EXTRACTION_FIELDS.map(({ key, label }) => (
-                <div key={key}>
-                  <dt>{label}</dt>
-                  <dd>{formatExtractedValue(details[key])}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
+          <FlightExtractionForm
+            organisationId={organisationId}
+            flightId={flightId}
+            jobId={jobId}
+            savedDetails={savedDetails}
+            editable={editable}
+            onSaved={setSavedDetails}
+          />
           <RawNotamsList notams={notams} />
         </>
       ) : null}

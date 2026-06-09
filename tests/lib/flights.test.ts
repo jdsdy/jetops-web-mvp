@@ -3,11 +3,18 @@ import { describe, expect, it } from "vitest";
 import {
   buildFlightPlanStoragePath,
   formatNotamText,
+  formatFlightExtractionDateTimeForDisplay,
+  formatFlightExtractionDateTimeForInput,
+  hasFlightExtractionChanges,
   isExtractionReadyJobStatus,
+  isFlightExtractionEditableJobStatus,
   mapFlightExtractionDetails,
   mapRawNotamRow,
+  parseFlightExtractionDateTimeInput,
   sanitizeFlightPlanFilename,
+  splitFlightExtractionUpdate,
   validateCreateFlightFormData,
+  validateFlightExtractionUpdatePayload,
 } from "@/lib/flights";
 
 describe("buildFlightPlanStoragePath", () => {
@@ -89,6 +96,158 @@ describe("mapRawNotamRow", () => {
       e: "SERVICES AMD \n LOUNGE CLOSED",
       f: "SFC",
       g: "FL100",
+    });
+  });
+});
+
+describe("formatFlightExtractionDateTimeForInput", () => {
+  it("formats stored timestamps using UTC components", () => {
+    expect(formatFlightExtractionDateTimeForInput("2026-06-05T10:00:00.000Z")).toBe(
+      "2026-06-05T10:00",
+    );
+  });
+});
+
+describe("formatFlightExtractionDateTimeForDisplay", () => {
+  it("formats stored timestamps for UTC read-only display", () => {
+    expect(formatFlightExtractionDateTimeForDisplay("2026-06-05T10:00:00.000Z")).toBe(
+      "2026-06-05 10:00 UTC",
+    );
+  });
+});
+
+describe("parseFlightExtractionDateTimeInput", () => {
+  it("parses datetime-local values as UTC", () => {
+    expect(parseFlightExtractionDateTimeInput("2026-06-05T10:00")).toBe(
+      "2026-06-05T10:00:00.000Z",
+    );
+  });
+});
+
+describe("isFlightExtractionEditableJobStatus", () => {
+  it("returns true only while awaiting confirmation", () => {
+    expect(isFlightExtractionEditableJobStatus("awaiting_confirmation")).toBe(true);
+    expect(isFlightExtractionEditableJobStatus("processing_analysis")).toBe(false);
+  });
+});
+
+describe("hasFlightExtractionChanges", () => {
+  const saved = {
+    departure_icao: "EGLL",
+    arrival_icao: "LFPG",
+    source_app: "ForeFlight",
+    route: "LAM SOU",
+    cruise_level: "FL380",
+    dept_rwy: "09L",
+    arr_rwy: "26R",
+    planned_dept_time: "2026-06-05T10:00:00.000Z",
+    planned_arr_time: "2026-06-05T12:30:00.000Z",
+    alt_icao: "EGKK",
+  };
+
+  it("returns false when draft matches saved values", () => {
+    expect(hasFlightExtractionChanges(saved, saved)).toBe(false);
+  });
+
+  it("returns true when a field changes", () => {
+    expect(
+      hasFlightExtractionChanges(saved, {
+        ...saved,
+        route: "LAM SOU BPK",
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("validateFlightExtractionUpdatePayload", () => {
+  const validBody = {
+    job_id: "33333333-3333-4333-8333-333333333333",
+    departure_icao: "EGLL",
+    arrival_icao: "LFPG",
+    source_app: "ForeFlight",
+    route: "LAM SOU",
+    cruise_level: "FL380",
+    dept_rwy: "09L",
+    arr_rwy: "26R",
+    planned_dept_time: "2026-06-05T10:00:00.000Z",
+    planned_arr_time: "2026-06-05T12:30:00.000Z",
+    alt_icao: "EGKK",
+  };
+
+  it("accepts a complete payload", () => {
+    expect(validateFlightExtractionUpdatePayload(validBody)).toEqual({
+      valid: true,
+      jobId: validBody.job_id,
+      details: {
+        departure_icao: "EGLL",
+        arrival_icao: "LFPG",
+        source_app: "ForeFlight",
+        route: "LAM SOU",
+        cruise_level: "FL380",
+        dept_rwy: "09L",
+        arr_rwy: "26R",
+        planned_dept_time: "2026-06-05T10:00:00.000Z",
+        planned_arr_time: "2026-06-05T12:30:00.000Z",
+        alt_icao: "EGKK",
+      },
+    });
+  });
+
+  it("rejects an invalid job id", () => {
+    expect(
+      validateFlightExtractionUpdatePayload({
+        ...validBody,
+        job_id: "not-a-uuid",
+      }),
+    ).toEqual({
+      valid: false,
+      error: "Job id is invalid",
+    });
+  });
+
+  it("rejects an invalid planned departure time", () => {
+    expect(
+      validateFlightExtractionUpdatePayload({
+        ...validBody,
+        planned_dept_time: "not-a-date",
+      }),
+    ).toEqual({
+      valid: false,
+      error: "Planned departure time is invalid",
+    });
+  });
+});
+
+describe("splitFlightExtractionUpdate", () => {
+  it("splits flight and flight plan fields", () => {
+    expect(
+      splitFlightExtractionUpdate({
+        departure_icao: "EGLL",
+        arrival_icao: "LFPG",
+        source_app: "ForeFlight",
+        route: "LAM SOU",
+        cruise_level: "FL380",
+        dept_rwy: "09L",
+        arr_rwy: "26R",
+        planned_dept_time: "2026-06-05T10:00:00.000Z",
+        planned_arr_time: "2026-06-05T12:30:00.000Z",
+        alt_icao: "EGKK",
+      }),
+    ).toEqual({
+      flight: {
+        departure_icao: "EGLL",
+        arrival_icao: "LFPG",
+      },
+      flightPlan: {
+        source_app: "ForeFlight",
+        route: "LAM SOU",
+        cruise_level: "FL380",
+        dept_rwy: "09L",
+        arr_rwy: "26R",
+        planned_dept_time: "2026-06-05T10:00:00.000Z",
+        planned_arr_time: "2026-06-05T12:30:00.000Z",
+        alt_icao: "EGKK",
+      },
     });
   });
 });

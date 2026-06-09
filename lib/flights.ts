@@ -99,6 +99,259 @@ export function isExtractionReadyJobStatus(status: string): boolean {
   );
 }
 
+export const FLIGHT_EXTRACTION_EDITABLE_JOB_STATUS = "awaiting_confirmation";
+
+/**
+ * Returns whether extracted flight details can be edited for the current job.
+ */
+export function isFlightExtractionEditableJobStatus(status: string): boolean {
+  return status === FLIGHT_EXTRACTION_EDITABLE_JOB_STATUS;
+}
+
+const FLIGHT_EXTRACTION_DATETIME_FIELDS = [
+  "planned_dept_time",
+  "planned_arr_time",
+] as const satisfies ReadonlyArray<keyof FlightExtractionDetails>;
+
+type FlightExtractionUpdateValidationSuccess = {
+  valid: true;
+  jobId: string;
+  details: FlightExtractionDetails;
+};
+
+type FlightExtractionUpdateValidationFailure = {
+  valid: false;
+  error: string;
+};
+
+export type FlightExtractionUpdateValidationResult =
+  | FlightExtractionUpdateValidationSuccess
+  | FlightExtractionUpdateValidationFailure;
+
+/**
+ * Normalises a nullable extracted text field from user input.
+ */
+export function normalizeFlightExtractionTextField(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+const FLIGHT_EXTRACTION_DATETIME_LOCAL_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+
+/**
+ * Parses an extracted datetime string from API or form input.
+ */
+function parseFlightExtractionDateTimeValue(value: string): Date | undefined {
+  const trimmed = value.trim();
+  const localUtcMatch = trimmed.match(FLIGHT_EXTRACTION_DATETIME_LOCAL_PATTERN);
+
+  if (localUtcMatch) {
+    const [, year, month, day, hour, minute] = localUtcMatch;
+    const parsed = new Date(
+      Date.UTC(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+        Number(hour),
+        Number(minute),
+      ),
+    );
+
+    if (Number.isNaN(parsed.getTime())) {
+      return undefined;
+    }
+
+    return parsed;
+  }
+
+  const parsed = new Date(trimmed);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return undefined;
+  }
+
+  return parsed;
+}
+
+/**
+ * Normalises a nullable extracted datetime field from user input.
+ */
+export function normalizeFlightExtractionDateTimeField(
+  value: unknown,
+): string | null | undefined {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const parsed = parseFlightExtractionDateTimeValue(trimmed);
+
+  if (!parsed) {
+    return undefined;
+  }
+
+  return parsed.toISOString();
+}
+
+/**
+ * Returns whether draft extraction details differ from the saved values.
+ */
+export function hasFlightExtractionChanges(
+  saved: FlightExtractionDetails,
+  draft: FlightExtractionDetails,
+): boolean {
+  return (Object.keys(saved) as (keyof FlightExtractionDetails)[]).some(
+    (key) => (saved[key] ?? null) !== (draft[key] ?? null),
+  );
+}
+
+/**
+ * Validates a PATCH payload for extracted flight details.
+ */
+export function validateFlightExtractionUpdatePayload(
+  body: unknown,
+): FlightExtractionUpdateValidationResult {
+  if (!body || typeof body !== "object") {
+    return { valid: false, error: "Request body is required" };
+  }
+
+  const payload = body as Record<string, unknown>;
+  const jobId = String(payload.job_id ?? "").trim();
+
+  if (!jobId) {
+    return { valid: false, error: "Job id is required" };
+  }
+
+  if (!UUID_PATTERN.test(jobId)) {
+    return { valid: false, error: "Job id is invalid" };
+  }
+
+  const details: FlightExtractionDetails = {
+    departure_icao: normalizeFlightExtractionTextField(payload.departure_icao),
+    arrival_icao: normalizeFlightExtractionTextField(payload.arrival_icao),
+    source_app: normalizeFlightExtractionTextField(payload.source_app),
+    route: normalizeFlightExtractionTextField(payload.route),
+    cruise_level: normalizeFlightExtractionTextField(payload.cruise_level),
+    dept_rwy: normalizeFlightExtractionTextField(payload.dept_rwy),
+    arr_rwy: normalizeFlightExtractionTextField(payload.arr_rwy),
+    planned_dept_time: null,
+    planned_arr_time: null,
+    alt_icao: normalizeFlightExtractionTextField(payload.alt_icao),
+  };
+
+  for (const field of FLIGHT_EXTRACTION_DATETIME_FIELDS) {
+    const normalized = normalizeFlightExtractionDateTimeField(payload[field]);
+
+    if (normalized === undefined) {
+      const label =
+        field === "planned_dept_time"
+          ? "Planned departure time"
+          : "Planned arrival time";
+      return { valid: false, error: `${label} is invalid` };
+    }
+
+    details[field] = normalized;
+  }
+
+  return { valid: true, jobId, details };
+}
+
+/**
+ * Splits extracted details into flight and flight plan update payloads.
+ */
+export function splitFlightExtractionUpdate(details: FlightExtractionDetails): {
+  flight: Pick<FlightExtractionDetails, "departure_icao" | "arrival_icao">;
+  flightPlan: Omit<FlightExtractionDetails, "departure_icao" | "arrival_icao">;
+} {
+  const {
+    departure_icao,
+    arrival_icao,
+    source_app,
+    route,
+    cruise_level,
+    dept_rwy,
+    arr_rwy,
+    planned_dept_time,
+    planned_arr_time,
+    alt_icao,
+  } = details;
+
+  return {
+    flight: { departure_icao, arrival_icao },
+    flightPlan: {
+      source_app,
+      route,
+      cruise_level,
+      dept_rwy,
+      arr_rwy,
+      planned_dept_time,
+      planned_arr_time,
+      alt_icao,
+    },
+  };
+}
+
+/**
+ * Formats an extracted datetime for a UTC datetime-local input.
+ */
+export function formatFlightExtractionDateTimeForInput(value: string | null): string {
+  if (!value) {
+    return "";
+  }
+
+  const parsed = parseFlightExtractionDateTimeValue(value);
+
+  if (!parsed) {
+    return "";
+  }
+
+  const pad = (part: number) => String(part).padStart(2, "0");
+
+  return `${parsed.getUTCFullYear()}-${pad(parsed.getUTCMonth() + 1)}-${pad(parsed.getUTCDate())}T${pad(parsed.getUTCHours())}:${pad(parsed.getUTCMinutes())}`;
+}
+
+/**
+ * Formats an extracted datetime for read-only UTC display.
+ */
+export function formatFlightExtractionDateTimeForDisplay(value: string | null): string {
+  if (!value?.trim()) {
+    return "Not extracted yet";
+  }
+
+  const parsed = parseFlightExtractionDateTimeValue(value);
+
+  if (!parsed) {
+    return value;
+  }
+
+  return `${parsed.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
+/**
+ * Parses a UTC datetime-local input value to ISO text.
+ */
+export function parseFlightExtractionDateTimeInput(value: string): string | null {
+  return normalizeFlightExtractionDateTimeField(value) ?? null;
+}
+
 const FLIGHT_EXTRACTION_SELECT = `
   id,
   departure_icao,
