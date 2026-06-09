@@ -16,9 +16,9 @@ function jsonError(message: string, status: number) {
  */
 export async function DELETE(
   _request: Request,
-  context: { params: Promise<{ slug: string; inviteId: string }> },
+  context: { params: Promise<{ organisationId: string; inviteId: string }> },
 ) {
-  const { slug, inviteId } = await context.params;
+  const { organisationId, inviteId } = await context.params;
   const supabase = await createClient();
   const {
     data: { user },
@@ -31,7 +31,7 @@ export async function DELETE(
   const { membership, error: adminError } = await requireOrgAdmin(
     supabase,
     user.id,
-    slug,
+    organisationId,
   );
 
   if (adminError || !membership) {

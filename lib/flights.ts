@@ -52,6 +52,119 @@ export type OrganisationFlightListItem = {
   job_status: string | null;
 };
 
+export type FlightExtractionDetails = {
+  departure_icao: string | null;
+  arrival_icao: string | null;
+  source_app: string | null;
+  route: string | null;
+  cruise_level: string | null;
+  dept_rwy: string | null;
+  arr_rwy: string | null;
+  planned_dept_time: string | null;
+  planned_arr_time: string | null;
+  alt_icao: string | null;
+};
+
+export type FlightExtractionResult = {
+  flightPlanId: string;
+  details: FlightExtractionDetails;
+};
+
+export type RawNotam = {
+  id: number;
+  notam_id: string;
+  title: string | null;
+  q: string | null;
+  a: string | null;
+  b: string | null;
+  c: string | null;
+  d: string | null;
+  e: string | null;
+  f: string | null;
+  g: string | null;
+};
+
+export const EXTRACTION_READY_JOB_STATUSES = [
+  "awaiting_confirmation",
+  "processing_analysis",
+  "complete",
+] as const;
+
+/**
+ * Returns whether an analysis job has finished extracting flight plan data.
+ */
+export function isExtractionReadyJobStatus(status: string): boolean {
+  return EXTRACTION_READY_JOB_STATUSES.includes(
+    status as (typeof EXTRACTION_READY_JOB_STATUSES)[number],
+  );
+}
+
+const FLIGHT_EXTRACTION_SELECT = `
+  id,
+  departure_icao,
+  arrival_icao,
+  flight_plans(
+    id,
+    source_app,
+    route,
+    cruise_level,
+    dept_rwy,
+    arr_rwy,
+    planned_dept_time,
+    planned_arr_time,
+    alt_icao,
+    is_current
+  )
+` as const;
+
+const RAW_NOTAM_SELECT = `
+  id,
+  notam_id,
+  title,
+  q,
+  a,
+  b,
+  c,
+  d,
+  e,
+  f,
+  g
+` as const;
+
+type FlightPlanExtractionRow = {
+  id: string;
+  source_app: string | null;
+  route: string | null;
+  cruise_level: string | null;
+  dept_rwy: string | null;
+  arr_rwy: string | null;
+  planned_dept_time: string | null;
+  planned_arr_time: string | null;
+  alt_icao: string | null;
+  is_current: boolean;
+};
+
+type FlightExtractionRow = {
+  id: string;
+  departure_icao: string | null;
+  arrival_icao: string | null;
+  flight_plans: FlightPlanExtractionRow[] | null;
+};
+
+type RawNotamRow = {
+  id: number;
+  notam_id: string;
+  title: string | null;
+  q: string | null;
+  a: string | null;
+  b: string | null;
+  c: string | null;
+  d: string | null;
+  e: string | null;
+  f: string | null;
+  g: string | null;
+};
+
 type FlightRow = {
   id: string;
   created_at: string;
@@ -112,6 +225,73 @@ function firstRelation<T>(value: T | T[] | null | undefined): T | null {
   }
 
   return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+/**
+ * Converts NOTAM placeholder newlines to real line breaks.
+ */
+export function formatNotamText(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  return value.replaceAll("{\\n}", "\n");
+}
+
+/**
+ * Maps a raw NOTAM row to display-ready text values.
+ */
+export function mapRawNotamRow(row: RawNotamRow): RawNotam {
+  return {
+    id: row.id,
+    notam_id: row.notam_id,
+    title: formatNotamText(row.title),
+    q: formatNotamText(row.q),
+    a: formatNotamText(row.a),
+    b: formatNotamText(row.b),
+    c: formatNotamText(row.c),
+    d: formatNotamText(row.d),
+    e: formatNotamText(row.e),
+    f: formatNotamText(row.f),
+    g: formatNotamText(row.g),
+  };
+}
+
+/**
+ * Maps a flight row and current plan to extracted field values.
+ */
+export function mapFlightExtractionDetails(
+  flight: FlightExtractionRow,
+): FlightExtractionDetails {
+  return mapFlightExtractionResult(flight).details;
+}
+
+/**
+ * Maps a flight row and current plan to extracted values plus plan id.
+ */
+export function mapFlightExtractionResult(
+  flight: FlightExtractionRow,
+): FlightExtractionResult {
+  const currentPlan =
+    flight.flight_plans?.find((plan) => plan.is_current) ??
+    flight.flight_plans?.[0] ??
+    null;
+
+  return {
+    flightPlanId: currentPlan?.id ?? "",
+    details: {
+      departure_icao: flight.departure_icao,
+      arrival_icao: flight.arrival_icao,
+      source_app: currentPlan?.source_app ?? null,
+      route: currentPlan?.route ?? null,
+      cruise_level: currentPlan?.cruise_level ?? null,
+      dept_rwy: currentPlan?.dept_rwy ?? null,
+      arr_rwy: currentPlan?.arr_rwy ?? null,
+      planned_dept_time: currentPlan?.planned_dept_time ?? null,
+      planned_arr_time: currentPlan?.planned_arr_time ?? null,
+      alt_icao: currentPlan?.alt_icao ?? null,
+    },
+  };
 }
 
 /**
@@ -206,4 +386,73 @@ export async function getOrganisationFlights(
   }
 
   return (data as FlightRow[]).map(mapFlightRow);
+}
+
+/**
+ * Loads extracted flight and plan fields plus the current plan id.
+ */
+export async function getFlightExtractionResult(
+  supabase: SupabaseClient,
+  flightId: string,
+  organisationId?: string,
+): Promise<FlightExtractionResult | null> {
+  let query = supabase
+    .from("flights")
+    .select(FLIGHT_EXTRACTION_SELECT)
+    .eq("id", flightId);
+
+  if (organisationId) {
+    query = query.eq("organisation_id", organisationId);
+  }
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return mapFlightExtractionResult(data as FlightExtractionRow);
+}
+
+/**
+ * Loads extracted flight and plan fields for the flights detail page.
+ */
+export async function getFlightExtractionDetails(
+  supabase: SupabaseClient,
+  flightId: string,
+  organisationId?: string,
+): Promise<FlightExtractionDetails | null> {
+  const result = await getFlightExtractionResult(
+    supabase,
+    flightId,
+    organisationId,
+  );
+
+  return result?.details ?? null;
+}
+
+/**
+ * Loads raw NOTAMs for an analysis job and flight plan pair.
+ */
+export async function getRawNotamsForAnalysis(
+  supabase: SupabaseClient,
+  analysisJobId: string,
+  flightPlanId: string,
+): Promise<RawNotam[]> {
+  if (!flightPlanId) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("raw_notams")
+    .select(RAW_NOTAM_SELECT)
+    .eq("analysis_job_id", analysisJobId)
+    .eq("flight_plan_id", flightPlanId)
+    .order("id", { ascending: true });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return (data as RawNotamRow[]).map(mapRawNotamRow);
 }

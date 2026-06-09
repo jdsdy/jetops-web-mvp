@@ -31,9 +31,9 @@ function jsonError(message: string, status: number) {
  */
 export async function GET(
   _request: Request,
-  context: { params: Promise<{ slug: string }> },
+  context: { params: Promise<{ organisationId: string }> },
 ) {
-  const { slug } = await context.params;
+  const { organisationId } = await context.params;
   const supabase = await createClient();
   const {
     data: { user },
@@ -46,7 +46,7 @@ export async function GET(
   const { membership, error: adminError } = await requireOrgAdmin(
     supabase,
     user.id,
-    slug,
+    organisationId,
   );
 
   if (adminError || !membership) {
@@ -74,9 +74,9 @@ export async function GET(
  */
 export async function POST(
   request: Request,
-  context: { params: Promise<{ slug: string }> },
+  context: { params: Promise<{ organisationId: string }> },
 ) {
-  const { slug } = await context.params;
+  const { organisationId } = await context.params;
   const supabase = await createClient();
   const {
     data: { user },
@@ -89,7 +89,7 @@ export async function POST(
   const { membership, error: adminError } = await requireOrgAdmin(
     supabase,
     user.id,
-    slug,
+    organisationId,
   );
 
   if (adminError || !membership) {

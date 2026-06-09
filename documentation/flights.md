@@ -1,14 +1,15 @@
 # Flights
 
-Organisation members create flights and upload PDF flight plans from `/app/organisation/{slug}`. After creation they are redirected to `/app/organisation/{slug}/flights?id={flight_id}&jobId={job_id}` to track analysis progress.
+Organisation members create flights and upload PDF flight plans from `/app/organisation/{organisationId}`. After creation they are redirected to `/app/organisation/{organisationId}/flights?id={flight_id}&jobId={job_id}` to track analysis progress.
 
 ## Data model
 
 | Table | Purpose |
 | --- | --- |
-| `flights` | Organisation flight record (aircraft, PIC, route fields populated later) |
-| `flight_plans` | Uploaded flight plan PDF metadata and extracted data |
+| `flights` | Organisation flight record (aircraft, PIC, departure/arrival ICAO) |
+| `flight_plans` | Uploaded flight plan PDF metadata and extracted route/timing fields |
 | `analysis_jobs` | External analysis job status tracked via Realtime |
+| `raw_notams` | Extracted NOTAM text linked to an analysis job and flight plan |
 
 Storage bucket: `flight_plan_pdfs` (private).
 
@@ -25,6 +26,7 @@ Object path format:
 | `flights` | Active org members can `SELECT` |
 | `flight_plans` | Active org members can `SELECT` plans for org flights |
 | `analysis_jobs` | Active org members can `SELECT` |
+| `raw_notams` | Active org members can `SELECT` NOTAMs for org analysis jobs |
 | `storage.objects` (`flight_plan_pdfs`) | Active org members can `SELECT` (download) objects whose first path segment matches their organisation |
 
 Creates and uploads use the secret-key client after an active membership check in the API route.
@@ -38,7 +40,7 @@ JETOPS_API_KEY=your-api-key
 
 ## API
 
-### `POST /api/organisations/{slug}/flights`
+### `POST /api/organisations/{organisationId}/flights`
 
 Creates a flight, uploads a PDF flight plan, and triggers external analysis.
 
@@ -83,19 +85,23 @@ On failure after partial writes, uploaded objects and DB rows are rolled back.
 
 ## App UI
 
-### `/app/organisation/{slug}`
+### `/app/organisation/{organisationId}`
 
 - Membership guard via `getActiveMembership`
 - Lists existing flights with links to the flight status page
 - **Create flight** form: aircraft dropdown (tail + model), PIC dropdown (display name + role), PDF upload
 - Redirect on success to flights page with `id` and `jobId` query params
 
-### `/app/organisation/{slug}/flights?id={flight_id}&jobId={job_id}`
+### `/app/organisation/{organisationId}/flights?id={flight_id}&jobId={job_id}`
 
 - Same slug membership guard
 - Subscribes to `analysis_jobs` Realtime updates for the job id
 - Performs an initial fetch fallback so fast status transitions are not missed
-- MVP displays the analysis job status (updated via Realtime)
+- Displays the analysis job status (updated via Realtime on `analysis_jobs` only)
+- Loads extracted fields from the database when the job is already `awaiting_confirmation` on first check, or when status changes from `processing_extraction` to `awaiting_confirmation`
+- Also shows extraction for later statuses (`processing_analysis`, `complete`) using the server-rendered initial values
+- Loads NOTAMs from `raw_notams` using both `analysis_job_id` and `flight_plan_id` when extraction is shown
+- Displays the NOTAM count with an expand/collapse list; multiline NOTAM fields render `{\n}` placeholders as line breaks
 
 ## Tests
 

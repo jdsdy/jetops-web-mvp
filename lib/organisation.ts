@@ -28,6 +28,8 @@ const MEMBER_STATUSES = ["active", "pending", "disabled"] as const;
 
 const INVITE_EXPIRY_DAYS = 7;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ORGANISATION_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const INVITATION_INVALID_MESSAGE = "This invite is no longer valid.";
 
@@ -124,6 +126,19 @@ type RequireOrgAdminResult = {
   membership: OrganisationMembership | null;
   error: string | null;
 };
+
+/**
+ * Normalises an organisation id from a route or API path segment.
+ */
+export function normaliseOrganisationId(value: string): string | null {
+  const trimmed = value.trim();
+
+  if (!ORGANISATION_ID_PATTERN.test(trimmed)) {
+    return null;
+  }
+
+  return trimmed.toLowerCase();
+}
 
 /**
  * Converts an organisation display name into a URL-safe slug.
@@ -394,6 +409,20 @@ export function getInviteExpiryDate(now: Date = new Date()): Date {
 }
 
 /**
+ * Returns the portal route for an organisation.
+ */
+export function getOrganisationPortalPath(organisationId: string): string {
+  return `/portal/organisation/${organisationId}`;
+}
+
+/**
+ * Returns the app route for an organisation.
+ */
+export function getOrganisationAppPath(organisationId: string): string {
+  return `/app/organisation/${organisationId}`;
+}
+
+/**
  * Returns the portal route for a user's active organisation membership.
  */
 export function getOrganisationPortalRedirect(
@@ -403,7 +432,7 @@ export function getOrganisationPortalRedirect(
     return "/portal/organisation/setup";
   }
 
-  return `/portal/organisation/${membership.organisations.slug}`;
+  return getOrganisationPortalPath(membership.organisations.id);
 }
 
 /**
@@ -443,12 +472,12 @@ function normaliseMembershipRow(data: {
 }
 
 /**
- * Loads a user's active organisation membership, optionally filtered by slug.
+ * Loads a user's active organisation membership, optionally filtered by organisation id.
  */
 export async function getActiveMembership(
   supabase: SupabaseClient,
   userId: string,
-  slug?: string,
+  organisationId?: string,
 ): Promise<OrganisationMembership | null> {
   let query = supabase
     .from("organisation_members")
@@ -456,17 +485,119 @@ export async function getActiveMembership(
     .eq("user_id", userId)
     .eq("status", "active");
 
-  if (slug) {
-    query = query.eq("organisations.slug", slug);
+  if (organisationId) {
+    const normalisedOrganisationId = normaliseOrganisationId(organisationId);
+
+    if (!normalisedOrganisationId) {
+      return null;
+    }
+
+    query = query.eq("organisations.id", normalisedOrganisationId);
   }
 
-  const { data } = await query.limit(1).maybeSingle();
+  const { data, error } = await query.limit(1).maybeSingle();
 
-  if (!data) {
+  if (error || !data) {
     return null;
   }
 
   return normaliseMembershipRow(data);
+}
+
+/**
+ * Loads active membership for an organisation route, with an unscoped fallback.
+ */
+export async function requireOrganisationRouteMembership(
+  supabase: SupabaseClient,
+  userId: string,
+  organisationId: string,
+): Promise<OrganisationMembership | null> {
+  const normalisedOrganisationId = normaliseOrganisationId(organisationId);
+
+  if (!normalisedOrganisationId) {
+    return null;
+  }
+
+  const scopedMembership = await getActiveMembership(
+    supabase,
+    userId,
+    normalisedOrganisationId,
+  );
+
+  if (scopedMembership) {
+    return scopedMembership;
+  }
+
+  const membership = await getActiveMembership(supabase, userId);
+
+  if (membership?.organisations.id === normalisedOrganisationId) {
+    return membership;
+  }
+
+  return null;
+}
+
+type OrganisationRouteAccess =
+  | { outcome: "ok"; membership: OrganisationMembership }
+  | { outcome: "redirect"; path: string };
+
+/**
+ * Resolves access for an organisation-scoped app route.
+ */
+export async function resolveOrganisationAppRouteAccess(
+  supabase: SupabaseClient,
+  userId: string,
+  organisationId: string,
+): Promise<OrganisationRouteAccess> {
+  const membership = await requireOrganisationRouteMembership(
+    supabase,
+    userId,
+    organisationId,
+  );
+
+  if (membership) {
+    return { outcome: "ok", membership };
+  }
+
+  const userMembership = await getUserOrganisationMembership(supabase, userId);
+
+  if (userMembership?.status === "active") {
+    return {
+      outcome: "redirect",
+      path: getOrganisationAppPath(userMembership.organisations.id),
+    };
+  }
+
+  return {
+    outcome: "redirect",
+    path: getOrganisationPortalRedirect(userMembership),
+  };
+}
+
+/**
+ * Resolves access for an organisation-scoped portal route.
+ */
+export async function resolveOrganisationPortalRouteAccess(
+  supabase: SupabaseClient,
+  userId: string,
+  organisationId: string,
+): Promise<OrganisationRouteAccess> {
+  const membership = await requireOrganisationRouteMembership(
+    supabase,
+    userId,
+    organisationId,
+  );
+
+  if (membership) {
+    return { outcome: "ok", membership };
+  }
+
+  const userMembership = await getUserOrganisationMembership(supabase, userId);
+
+  return {
+    outcome: "redirect",
+    path: getOrganisationPortalRedirect(userMembership),
+  };
 }
 
 /**
@@ -548,7 +679,7 @@ export function resolveOrganisationCallbackRedirect(
   if (membership.status === "active") {
     return {
       outcome: "redirect",
-      path: `/portal/organisation/${membership.organisations.slug}`,
+      path: getOrganisationPortalPath(membership.organisations.id),
     };
   }
 
@@ -622,19 +753,25 @@ export async function restoreOrganisationMemberAccess(
 }
 
 /**
- * Ensures the user is an active admin of the organisation identified by slug.
+ * Ensures the user is an active admin of the organisation identified by id.
  */
 export async function requireOrgAdmin(
   supabase: SupabaseClient,
   userId: string,
-  slug: string,
+  organisationId: string,
 ): Promise<RequireOrgAdminResult> {
+  const normalisedOrganisationId = normaliseOrganisationId(organisationId);
+
+  if (!normalisedOrganisationId) {
+    return { membership: null, error: "Forbidden" };
+  }
+
   const { data, error } = await supabase
     .from("organisation_members")
     .select(MEMBERSHIP_SELECT)
     .eq("user_id", userId)
     .eq("status", "active")
-    .eq("organisations.slug", slug)
+    .eq("organisations.id", normalisedOrganisationId)
     .maybeSingle();
 
   if (error || !data) {

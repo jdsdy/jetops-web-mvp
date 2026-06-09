@@ -8,7 +8,7 @@ import type {
 } from "@/lib/fleet";
 
 type FleetSectionProps = {
-  slug: string;
+  organisationId: string;
   isAdmin: boolean;
 };
 
@@ -19,7 +19,7 @@ type ApiErrorResponse = {
 /**
  * Displays an organisation fleet and lets admins add and manage aircraft.
  */
-export function FleetSection({ slug, isAdmin }: FleetSectionProps) {
+export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
   const manageDialogRef = useRef<HTMLDialogElement>(null);
   const [fleet, setFleet] = useState<FleetAircraftListItem[]>([]);
   const [referenceGroups, setReferenceGroups] = useState<AircraftReferenceGroup[]>(
@@ -53,11 +53,11 @@ export function FleetSection({ slug, isAdmin }: FleetSectionProps) {
   /**
    * Loads fleet aircraft for the organisation.
    *
-   * - Fetches `/api/organisations/{slug}/fleet`
+   * - Fetches `/api/organisations/{organisationId}/fleet`
    * - Surfaces API errors and stops loading on failure
    */
   const loadFleet = useCallback(async () => {
-    const response = await fetch(`/api/organisations/${slug}/fleet`);
+    const response = await fetch(`/api/organisations/${organisationId}/fleet`);
     const result = (await response.json()) as
       | FleetAircraftListItem[]
       | ApiErrorResponse;
@@ -73,7 +73,7 @@ export function FleetSection({ slug, isAdmin }: FleetSectionProps) {
 
     setFleet(Array.isArray(result) ? result : []);
     return true;
-  }, [slug]);
+  }, [organisationId]);
 
   /**
    * Loads aircraft reference data for admin dropdown menus.
@@ -140,7 +140,7 @@ export function FleetSection({ slug, isAdmin }: FleetSectionProps) {
    * Adds an aircraft to the organisation fleet.
    *
    * - Validates the selected manufacturer/model pair locally
-   * - POSTs the payload to `/api/organisations/{slug}/fleet`
+   * - POSTs the payload to `/api/organisations/{organisationId}/fleet`
    * - Clears the form and reloads the fleet list on success
    */
   async function handleAddAircraft(event: React.FormEvent<HTMLFormElement>) {
@@ -158,7 +158,7 @@ export function FleetSection({ slug, isAdmin }: FleetSectionProps) {
       return;
     }
 
-    const response = await fetch(`/api/organisations/${slug}/fleet`, {
+    const response = await fetch(`/api/organisations/${organisationId}/fleet`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -205,7 +205,7 @@ export function FleetSection({ slug, isAdmin }: FleetSectionProps) {
     setMessage(null);
 
     const response = await fetch(
-      `/api/organisations/${slug}/fleet/${managedAircraft.id}`,
+      `/api/organisations/${organisationId}/fleet/${managedAircraft.id}`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -247,7 +247,7 @@ export function FleetSection({ slug, isAdmin }: FleetSectionProps) {
     setMessage(null);
 
     const response = await fetch(
-      `/api/organisations/${slug}/fleet/${managedAircraft.id}`,
+      `/api/organisations/${organisationId}/fleet/${managedAircraft.id}`,
       {
         method: "DELETE",
       },

@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation";
 
 import {
+  getOrganisationAppPath,
   getOrganisationPortalRedirect,
   getUserOrganisationMembership,
 } from "@/lib/organisation";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Redirects organisation users to their slug-scoped app home.
+ * Redirects organisation users to their organisation-scoped app home.
  */
 export default async function OrganisationAppPage() {
   const supabase = await createClient();
@@ -25,5 +26,5 @@ export default async function OrganisationAppPage() {
     redirect(getOrganisationPortalRedirect(membership));
   }
 
-  redirect(`/app/organisation/${membership.organisations.slug}`);
+  redirect(getOrganisationAppPath(membership.organisations.id));
 }

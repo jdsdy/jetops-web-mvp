@@ -101,9 +101,9 @@ async function applyMemberEnableSideEffects(userId: string) {
  */
 export async function POST(
   _request: Request,
-  context: { params: Promise<{ slug: string; memberId: string }> },
+  context: { params: Promise<{ organisationId: string; memberId: string }> },
 ) {
-  const { slug, memberId } = await context.params;
+  const { organisationId, memberId } = await context.params;
   const supabase = await createClient();
   const {
     data: { user },
@@ -116,7 +116,7 @@ export async function POST(
   const { membership, error: adminError } = await requireOrgAdmin(
     supabase,
     user.id,
-    slug,
+    organisationId,
   );
 
   if (adminError || !membership) {
@@ -165,9 +165,9 @@ export async function POST(
  */
 export async function PATCH(
   request: Request,
-  context: { params: Promise<{ slug: string; memberId: string }> },
+  context: { params: Promise<{ organisationId: string; memberId: string }> },
 ) {
-  const { slug, memberId } = await context.params;
+  const { organisationId, memberId } = await context.params;
   const supabase = await createClient();
   const {
     data: { user },
@@ -180,7 +180,7 @@ export async function PATCH(
   const { membership, error: adminError } = await requireOrgAdmin(
     supabase,
     user.id,
-    slug,
+    organisationId,
   );
 
   if (adminError || !membership) {
@@ -253,9 +253,9 @@ export async function PATCH(
  */
 export async function DELETE(
   _request: Request,
-  context: { params: Promise<{ slug: string; memberId: string }> },
+  context: { params: Promise<{ organisationId: string; memberId: string }> },
 ) {
-  const { slug, memberId } = await context.params;
+  const { organisationId, memberId } = await context.params;
   const supabase = await createClient();
   const {
     data: { user },
@@ -268,7 +268,7 @@ export async function DELETE(
   const { membership, error: adminError } = await requireOrgAdmin(
     supabase,
     user.id,
-    slug,
+    organisationId,
   );
 
   if (adminError || !membership) {

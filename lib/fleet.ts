@@ -249,14 +249,14 @@ export async function getOrganisationFleet(
 }
 
 /**
- * Ensures the user is an active member of the organisation identified by slug.
+ * Ensures the user is an active member of the organisation identified by id.
  */
 export async function requireActiveOrganisationMember(
   supabase: SupabaseClient,
   userId: string,
-  slug: string,
+  organisationId: string,
 ): Promise<RequireActiveOrganisationMemberResult> {
-  const membership = await getActiveMembership(supabase, userId, slug);
+  const membership = await getActiveMembership(supabase, userId, organisationId);
 
   if (!membership) {
     return { membership: null, error: "Forbidden" };

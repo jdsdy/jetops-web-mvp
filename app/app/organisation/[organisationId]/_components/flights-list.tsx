@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { OrganisationFlightListItem } from "@/lib/flights";
 
 type FlightsListProps = {
-  slug: string;
+  organisationId: string;
   flights: OrganisationFlightListItem[];
 };
 
@@ -30,20 +30,20 @@ function formatFlightLabel(flight: OrganisationFlightListItem): string {
  * Builds the flight status page URL when an analysis job exists.
  */
 function buildFlightPageHref(
-  slug: string,
+  organisationId: string,
   flight: OrganisationFlightListItem,
 ): string | null {
   if (!flight.job_id) {
     return null;
   }
 
-  return `/app/organisation/${slug}/flights?id=${flight.id}&jobId=${flight.job_id}`;
+  return `/app/organisation/${organisationId}/flights?id=${flight.id}&jobId=${flight.job_id}`;
 }
 
 /**
  * Displays organisation flights with links to the flight status page.
  */
-export function FlightsList({ slug, flights }: FlightsListProps) {
+export function FlightsList({ organisationId, flights }: FlightsListProps) {
   return (
     <section>
       <h2>Flights</h2>
@@ -55,7 +55,7 @@ export function FlightsList({ slug, flights }: FlightsListProps) {
           {flights.map((flight) => {
             const label = formatFlightLabel(flight);
             const status = flight.job_status ?? flight.status ?? "Unknown";
-            const href = buildFlightPageHref(slug, flight);
+            const href = buildFlightPageHref(organisationId, flight);
             const rowText = `${label} — ${status}`;
 
             return (

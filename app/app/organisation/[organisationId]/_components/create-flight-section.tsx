@@ -7,7 +7,7 @@ import type { FleetAircraftListItem } from "@/lib/fleet";
 import type { OrganisationMember } from "@/lib/organisation";
 
 type CreateFlightSectionProps = {
-  slug: string;
+  organisationId: string;
   aircraft: FleetAircraftListItem[];
   members: OrganisationMember[];
 };
@@ -36,7 +36,7 @@ function isCreateFlightResponse(body: unknown): body is CreateFlightResponse {
  * Lets organisation members create a flight with a PDF flight plan upload.
  */
 export function CreateFlightSection({
-  slug,
+  organisationId,
   aircraft,
   members,
 }: CreateFlightSectionProps) {
@@ -52,7 +52,7 @@ export function CreateFlightSection({
    * Creates a flight and redirects to the flights status page.
    *
    * - Builds multipart form data with aircraft, PIC, and PDF file
-   * - POSTs to `/api/organisations/{slug}/flights`
+   * - POSTs to `/api/organisations/{organisationId}/flights`
    * - Navigates to the flights page with flight and job ids on success
    */
   async function handleCreateFlight(event: React.FormEvent<HTMLFormElement>) {
@@ -71,7 +71,7 @@ export function CreateFlightSection({
     formData.set("pic_user_id", picUserId);
     formData.set("flight_plan", flightPlanFile);
 
-    const response = await fetch(`/api/organisations/${slug}/flights`, {
+    const response = await fetch(`/api/organisations/${organisationId}/flights`, {
       method: "POST",
       body: formData,
     });
@@ -91,7 +91,7 @@ export function CreateFlightSection({
     }
 
     router.push(
-      `/app/organisation/${slug}/flights?id=${result.flight_id}&jobId=${result.job_id}`,
+      `/app/organisation/${organisationId}/flights?id=${result.flight_id}&jobId=${result.job_id}`,
     );
   }
 

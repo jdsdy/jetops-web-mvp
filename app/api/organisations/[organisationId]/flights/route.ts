@@ -102,9 +102,9 @@ async function failAfterRollback(
  */
 export async function POST(
   request: Request,
-  context: { params: Promise<{ slug: string }> },
+  context: { params: Promise<{ organisationId: string }> },
 ) {
-  const { slug } = await context.params;
+  const { organisationId } = await context.params;
   const supabase = await createClient();
   const {
     data: { user },
@@ -117,7 +117,7 @@ export async function POST(
   const { membership, error: memberError } = await requireActiveOrganisationMember(
     supabase,
     user.id,
-    slug,
+    organisationId,
   );
 
   if (memberError || !membership) {
@@ -138,7 +138,6 @@ export async function POST(
     return jsonError(validation.error, 400);
   }
 
-  const organisationId = membership.organisations.id;
   const adminClient = createAdminClient();
   const [aircraftValid, picValid] = await Promise.all([
     verifyOrganisationAircraft(

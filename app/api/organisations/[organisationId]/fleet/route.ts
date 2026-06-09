@@ -18,13 +18,13 @@ function jsonError(message: string, status: number) {
 }
 
 /**
- * Lists fleet aircraft for the organisation identified by slug.
+ * Lists fleet aircraft for the organisation identified by id.
  */
 export async function GET(
   _request: Request,
-  context: { params: Promise<{ slug: string }> },
+  context: { params: Promise<{ organisationId: string }> },
 ) {
-  const { slug } = await context.params;
+  const { organisationId } = await context.params;
   const supabase = await createClient();
   const {
     data: { user },
@@ -37,7 +37,7 @@ export async function GET(
   const { membership, error: memberError } = await requireActiveOrganisationMember(
     supabase,
     user.id,
-    slug,
+    organisationId,
   );
 
   if (memberError || !membership) {
@@ -57,9 +57,9 @@ export async function GET(
  */
 export async function POST(
   request: Request,
-  context: { params: Promise<{ slug: string }> },
+  context: { params: Promise<{ organisationId: string }> },
 ) {
-  const { slug } = await context.params;
+  const { organisationId } = await context.params;
   const supabase = await createClient();
   const {
     data: { user },
@@ -72,7 +72,7 @@ export async function POST(
   const { membership, error: adminError } = await requireOrgAdmin(
     supabase,
     user.id,
-    slug,
+    organisationId,
   );
 
   if (adminError || !membership) {

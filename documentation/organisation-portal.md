@@ -21,7 +21,7 @@ const { data: membership } = await supabase
   `)
   .eq("user_id", user.id)
   .eq("status", "active")
-  .eq("organisations.slug", slug) // optional, on slug routes
+  .eq("organisations.id", organisationId) // optional, on organisation routes
   .maybeSingle();
 ```
 
@@ -45,33 +45,33 @@ The helper `private.is_active_org_member` checks for an **active** membership in
 | `/portal/callback` | Resolves membership; disabled users are signed out with an error message |
 | `/portal/organisation` | Redirects to `/portal/callback` |
 | `/portal/organisation/setup` | Create organisation form (skipped if membership exists) |
-| `/portal/organisation/{slug}` | Organisation portal for an active member |
+| `/portal/organisation/{organisationId}` | Organisation portal for an active member |
 
 ## Setup flow
 
 1. User enters an organisation name (slug is derived automatically).
 2. `createOrganisation` loads the user's profile and calls the `create_organisation` RPC with `org_name`, `org_slug`, and `member_display_name` (e.g. `Josh` + `S` → `Josh S`).
 3. Slug rules: lowercase, spaces to hyphens, non-alphanumeric characters removed (e.g. `Jet Operations` → `jet-operations`).
-4. On success, user is redirected to `/portal/organisation/{slug}`.
+4. On success, user is redirected to `/portal/organisation/{organisationId}`.
 
 ## Members list
 
-Non-admin members on `/portal/organisation/{slug}` see a read-only list of **active** members via `getActiveOrganisationMembers`.
+Non-admin members on `/portal/organisation/{organisationId}` see a read-only list of **active** members via `getActiveOrganisationMembers`.
 
 ## User management
 
 Organisation admins see the **User management** section instead of the read-only list. It loads data from:
 
-- `GET /api/organisations/{slug}/members`
-- `GET /api/organisations/{slug}/invites`
+- `GET /api/organisations/{organisationId}/members`
+- `GET /api/organisations/{organisationId}/invites`
 
 Admins can update roles, toggle admin status, deactivate members, cancel pending invites, and send new invites. See [organisation-members.md](./organisation-members.md) and [organisation-invites.md](./organisation-invites.md).
 
 ## Fleet
 
-All active members on `/portal/organisation/{slug}` see the organisation fleet (manufacturer, model, tail number) via `FleetSection`.
+All active members on `/portal/organisation/{organisationId}` see the organisation fleet (manufacturer, model, tail number) via `FleetSection`.
 
-Admins can add aircraft using manufacturer/model dropdowns backed by `GET /api/aircraft-reference` and `POST /api/organisations/{slug}/fleet`. Each fleet row has a **Manage** button that opens a dialog for updating tail number, seats, RNAV equipped, or deleting the aircraft via `PATCH` and `DELETE` on `/api/organisations/{slug}/fleet/{aircraftId}`. See [fleet.md](./fleet.md).
+Admins can add aircraft using manufacturer/model dropdowns backed by `GET /api/aircraft-reference` and `POST /api/organisations/{organisationId}/fleet`. Each fleet row has a **Manage** button that opens a dialog for updating tail number, seats, RNAV equipped, or deleting the aircraft via `PATCH` and `DELETE` on `/api/organisations/{organisationId}/fleet/{aircraftId}`. See [fleet.md](./fleet.md).
 
 ## Invites
 

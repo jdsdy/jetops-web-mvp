@@ -8,12 +8,12 @@
 | `/portal/callback` | Yes (organisation) | Resolves membership; signs out disabled users |
 | `/portal/organisation` | Yes (organisation) | Redirects to `/portal/callback` |
 | `/portal/organisation/setup` | Yes (organisation) | Create organisation form |
-| `/portal/organisation/{slug}` | Yes (organisation) | Organisation portal; admins get user management, others see read-only members |
+| `/portal/organisation/{organisationId}` | Yes (organisation) | Organisation portal; admins get user management, others see read-only members |
 | `/auth/accept-invite` | No (until token verified) | Invite acceptance and password setup |
 | `/app/personal` | Yes (personal) | Personal app shell |
-| `/app/organisation` | Yes (organisation) | Redirects to `/app/organisation/{slug}` for active members |
-| `/app/organisation/{slug}` | Yes (organisation) | Organisation app home; create flight form |
-| `/app/organisation/{slug}/flights` | Yes (organisation) | Flight analysis status page (`?id=` and `?jobId=` required) |
+| `/app/organisation` | Yes (organisation) | Redirects to `/app/organisation/{organisationId}` for active members |
+| `/app/organisation/{organisationId}` | Yes (organisation) | Organisation app home; create flight form |
+| `/app/organisation/{organisationId}/flights` | Yes (organisation) | Flight analysis status page (`?id=` and `?jobId=` required) |
 
 ## Account-type route protection
 
@@ -32,7 +32,7 @@ Enforcement runs in `proxy.ts` via `lib/supabase/middleware.ts`. Logic is covere
 
 See [organisation-portal.md](./organisation-portal.md) for membership resolution and setup.
 
-`/portal/organisation/{slug}` includes:
+`/portal/organisation/{organisationId}` includes:
 
 - Organisation name
 - **Go to app/organisation** → `/app/organisation`
@@ -50,23 +50,23 @@ Tests live in `tests/lib/auth.test.ts` and `tests/lib/organisation.test.ts`.
 
 ## API routes
 
-Organisation management APIs live under `/api/organisations/{slug}/`. Each resource uses HTTP methods on a single path:
+Organisation management APIs live under `/api/organisations/{organisationId}/`. Each resource uses HTTP methods on a single path:
 
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/api/aircraft-reference` | List aircraft reference grouped by manufacturer (authenticated) |
-| `GET` | `/api/organisations/{slug}/fleet` | List organisation fleet (active member) |
-| `POST` | `/api/organisations/{slug}/fleet` | Add fleet aircraft (admin) |
-| `POST` | `/api/organisations/{slug}/flights` | Create flight with PDF upload and trigger analysis (active member) |
-| `PATCH` | `/api/organisations/{slug}/fleet/{aircraftId}` | Update fleet aircraft (admin) |
-| `DELETE` | `/api/organisations/{slug}/fleet/{aircraftId}` | Delete fleet aircraft (admin) |
-| `GET` | `/api/organisations/{slug}/members` | List active and disabled members (admin) |
-| `POST` | `/api/organisations/{slug}/members/{memberId}` | Re-enable disabled member |
-| `POST` | `/api/organisations/{slug}/members/{memberId}/ownership` | Transfer organisation ownership |
-| `PATCH` | `/api/organisations/{slug}/members/{memberId}` | Update role, status, or admin flag |
-| `DELETE` | `/api/organisations/{slug}/members/{memberId}` | Deactivate member |
-| `GET` | `/api/organisations/{slug}/invites` | List pending invites (admin) |
-| `POST` | `/api/organisations/{slug}/invites` | Send invite |
-| `DELETE` | `/api/organisations/{slug}/invites/{inviteId}` | Cancel invite |
+| `GET` | `/api/organisations/{organisationId}/fleet` | List organisation fleet (active member) |
+| `POST` | `/api/organisations/{organisationId}/fleet` | Add fleet aircraft (admin) |
+| `POST` | `/api/organisations/{organisationId}/flights` | Create flight with PDF upload and trigger analysis (active member) |
+| `PATCH` | `/api/organisations/{organisationId}/fleet/{aircraftId}` | Update fleet aircraft (admin) |
+| `DELETE` | `/api/organisations/{organisationId}/fleet/{aircraftId}` | Delete fleet aircraft (admin) |
+| `GET` | `/api/organisations/{organisationId}/members` | List active and disabled members (admin) |
+| `POST` | `/api/organisations/{organisationId}/members/{memberId}` | Re-enable disabled member |
+| `POST` | `/api/organisations/{organisationId}/members/{memberId}/ownership` | Transfer organisation ownership |
+| `PATCH` | `/api/organisations/{organisationId}/members/{memberId}` | Update role, status, or admin flag |
+| `DELETE` | `/api/organisations/{organisationId}/members/{memberId}` | Deactivate member |
+| `GET` | `/api/organisations/{organisationId}/invites` | List pending invites (admin) |
+| `POST` | `/api/organisations/{organisationId}/invites` | Send invite |
+| `DELETE` | `/api/organisations/{organisationId}/invites/{inviteId}` | Cancel invite |
 
 See [organisation-members.md](./organisation-members.md), [organisation-invites.md](./organisation-invites.md), [fleet.md](./fleet.md), and [flights.md](./flights.md).

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { OrganisationMember } from "@/lib/organisation";
 
 type UserManagementProps = {
-  slug: string;
+  organisationId: string;
   currentUserId: string;
 };
 
@@ -27,7 +27,7 @@ type ApiErrorResponse = {
  * Loads member and invite data on mount, then exposes actions that call the
  * organisation members and invites API routes.
  */
-export function UserManagement({ slug, currentUserId }: UserManagementProps) {
+export function UserManagement({ organisationId, currentUserId }: UserManagementProps) {
   const [members, setMembers] = useState<OrganisationMember[]>([]);
   const [invites, setInvites] = useState<PendingInvite[]>([]);
   const [roleDrafts, setRoleDrafts] = useState<Record<string, string>>({});
@@ -50,8 +50,8 @@ export function UserManagement({ slug, currentUserId }: UserManagementProps) {
     setError(null);
 
     const [membersResponse, invitesResponse] = await Promise.all([
-      fetch(`/api/organisations/${slug}/members`),
-      fetch(`/api/organisations/${slug}/invites`),
+      fetch(`/api/organisations/${organisationId}/members`),
+      fetch(`/api/organisations/${organisationId}/invites`),
     ]);
 
     const membersResult = (await membersResponse.json()) as
@@ -88,7 +88,7 @@ export function UserManagement({ slug, currentUserId }: UserManagementProps) {
     );
     setInvites(Array.isArray(invitesResult) ? invitesResult : []);
     setLoading(false);
-  }, [slug]);
+  }, [organisationId]);
 
   useEffect(() => {
     void loadData();
@@ -108,7 +108,7 @@ export function UserManagement({ slug, currentUserId }: UserManagementProps) {
     setMessage(null);
 
     const formData = new FormData(event.currentTarget);
-    const response = await fetch(`/api/organisations/${slug}/invites`, {
+    const response = await fetch(`/api/organisations/${organisationId}/invites`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -140,7 +140,7 @@ export function UserManagement({ slug, currentUserId }: UserManagementProps) {
     setMessage(null);
 
     const response = await fetch(
-      `/api/organisations/${slug}/members/${memberId}`,
+      `/api/organisations/${organisationId}/members/${memberId}`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -168,7 +168,7 @@ export function UserManagement({ slug, currentUserId }: UserManagementProps) {
     setMessage(null);
 
     const response = await fetch(
-      `/api/organisations/${slug}/members/${member.id}`,
+      `/api/organisations/${organisationId}/members/${member.id}`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -201,7 +201,7 @@ export function UserManagement({ slug, currentUserId }: UserManagementProps) {
     setMessage(null);
 
     const response = await fetch(
-      `/api/organisations/${slug}/members/${memberId}`,
+      `/api/organisations/${organisationId}/members/${memberId}`,
       {
         method: "DELETE",
       },
@@ -232,7 +232,7 @@ export function UserManagement({ slug, currentUserId }: UserManagementProps) {
     setMessage(null);
 
     const response = await fetch(
-      `/api/organisations/${slug}/members/${memberId}`,
+      `/api/organisations/${organisationId}/members/${memberId}`,
       {
         method: "POST",
       },
@@ -264,7 +264,7 @@ export function UserManagement({ slug, currentUserId }: UserManagementProps) {
     setMessage(null);
 
     const response = await fetch(
-      `/api/organisations/${slug}/members/${memberId}/ownership`,
+      `/api/organisations/${organisationId}/members/${memberId}/ownership`,
       {
         method: "POST",
       },
@@ -295,7 +295,7 @@ export function UserManagement({ slug, currentUserId }: UserManagementProps) {
     setMessage(null);
 
     const response = await fetch(
-      `/api/organisations/${slug}/invites/${inviteId}`,
+      `/api/organisations/${organisationId}/invites/${inviteId}`,
       {
         method: "DELETE",
       },

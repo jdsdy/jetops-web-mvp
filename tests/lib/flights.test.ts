@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildFlightPlanStoragePath,
+  formatNotamText,
+  isExtractionReadyJobStatus,
+  mapFlightExtractionDetails,
+  mapRawNotamRow,
   sanitizeFlightPlanFilename,
   validateCreateFlightFormData,
 } from "@/lib/flights";
@@ -30,6 +34,99 @@ describe("sanitizeFlightPlanFilename", () => {
 
   it("preserves a safe filename", () => {
     expect(sanitizeFlightPlanFilename("my-briefing.pdf")).toBe("my-briefing.pdf");
+  });
+});
+
+describe("isExtractionReadyJobStatus", () => {
+  it("returns true once extraction has finished", () => {
+    expect(isExtractionReadyJobStatus("awaiting_confirmation")).toBe(true);
+    expect(isExtractionReadyJobStatus("processing_analysis")).toBe(true);
+    expect(isExtractionReadyJobStatus("complete")).toBe(true);
+  });
+
+  it("returns false while extraction is still running", () => {
+    expect(isExtractionReadyJobStatus("processing_extraction")).toBe(false);
+  });
+});
+
+describe("formatNotamText", () => {
+  it("returns null for empty values", () => {
+    expect(formatNotamText(null)).toBeNull();
+  });
+
+  it("replaces NOTAM newline placeholders with line breaks", () => {
+    expect(
+      formatNotamText("HANDLING SERVICES AMD {\\n} REMOVE THE FLW: {\\n} JET AVIATION"),
+    ).toBe("HANDLING SERVICES AMD \n REMOVE THE FLW: \n JET AVIATION");
+  });
+});
+
+describe("mapRawNotamRow", () => {
+  it("formats all NOTAM text fields", () => {
+    expect(
+      mapRawNotamRow({
+        id: 1,
+        notam_id: "A1234/26",
+        title: "SYD {\\n} FBO",
+        q: "Q) YBBB/QMXLC/IV/NBO/A/000/999/3357S15111E005",
+        a: "YSSY",
+        b: "2026-06-05",
+        c: "2026-06-12",
+        d: "0600-1800",
+        e: "SERVICES AMD {\\n} LOUNGE CLOSED",
+        f: "SFC",
+        g: "FL100",
+      }),
+    ).toEqual({
+      id: 1,
+      notam_id: "A1234/26",
+      title: "SYD \n FBO",
+      q: "Q) YBBB/QMXLC/IV/NBO/A/000/999/3357S15111E005",
+      a: "YSSY",
+      b: "2026-06-05",
+      c: "2026-06-12",
+      d: "0600-1800",
+      e: "SERVICES AMD \n LOUNGE CLOSED",
+      f: "SFC",
+      g: "FL100",
+    });
+  });
+});
+
+describe("mapFlightExtractionDetails", () => {
+  it("maps flight and current plan extraction fields", () => {
+    expect(
+      mapFlightExtractionDetails({
+        id: "flight-1",
+        departure_icao: "EGLL",
+        arrival_icao: "LFPG",
+        flight_plans: [
+          {
+            id: "plan-1",
+            source_app: "ForeFlight",
+            route: "LAM SOU",
+            cruise_level: "FL380",
+            dept_rwy: "09L",
+            arr_rwy: "26R",
+            planned_dept_time: "2026-06-05T10:00:00.000Z",
+            planned_arr_time: "2026-06-05T12:30:00.000Z",
+            alt_icao: "EGKK",
+            is_current: true,
+          },
+        ],
+      }),
+    ).toEqual({
+      departure_icao: "EGLL",
+      arrival_icao: "LFPG",
+      source_app: "ForeFlight",
+      route: "LAM SOU",
+      cruise_level: "FL380",
+      dept_rwy: "09L",
+      arr_rwy: "26R",
+      planned_dept_time: "2026-06-05T10:00:00.000Z",
+      planned_arr_time: "2026-06-05T12:30:00.000Z",
+      alt_icao: "EGKK",
+    });
   });
 });
 

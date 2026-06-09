@@ -43,9 +43,9 @@ async function loadOrganisationFleetAircraft(
  */
 export async function PATCH(
   request: Request,
-  context: { params: Promise<{ slug: string; aircraftId: string }> },
+  context: { params: Promise<{ organisationId: string; aircraftId: string }> },
 ) {
-  const { slug, aircraftId } = await context.params;
+  const { organisationId, aircraftId } = await context.params;
   const supabase = await createClient();
   const {
     data: { user },
@@ -58,7 +58,7 @@ export async function PATCH(
   const { membership, error: adminError } = await requireOrgAdmin(
     supabase,
     user.id,
-    slug,
+    organisationId,
   );
 
   if (adminError || !membership) {
@@ -113,9 +113,9 @@ export async function PATCH(
  */
 export async function DELETE(
   _request: Request,
-  context: { params: Promise<{ slug: string; aircraftId: string }> },
+  context: { params: Promise<{ organisationId: string; aircraftId: string }> },
 ) {
-  const { slug, aircraftId } = await context.params;
+  const { organisationId, aircraftId } = await context.params;
   const supabase = await createClient();
   const {
     data: { user },
@@ -128,7 +128,7 @@ export async function DELETE(
   const { membership, error: adminError } = await requireOrgAdmin(
     supabase,
     user.id,
-    slug,
+    organisationId,
   );
 
   if (adminError || !membership) {

@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import {
   INVITATION_INVALID_MESSAGE,
   formatMemberDisplayName,
+  getActiveMembership,
+  getOrganisationPortalRedirect,
   isInvitationAcceptable,
   validateOrganisationName,
 } from "@/lib/organisation";
@@ -60,7 +62,9 @@ export async function createOrganisation(
     return { error: error.message };
   }
 
-  redirect(`/portal/organisation/${validation.slug}`);
+  const membership = await getActiveMembership(supabase, user.id);
+
+  redirect(getOrganisationPortalRedirect(membership));
 }
 
 /**
@@ -93,12 +97,6 @@ export async function acceptInvitation(
     return { error: INVITATION_INVALID_MESSAGE };
   }
 
-  const organisationSlug = String(user.user_metadata?.organisation_slug ?? "");
-
-  if (!organisationSlug) {
-    return { error: INVITATION_INVALID_MESSAGE };
-  }
-
   const { error: acceptError } = await supabase.rpc(
     "accept_organisation_invitation",
     { p_invitation_id: invitationId },
@@ -118,5 +116,7 @@ export async function acceptInvitation(
       .eq("id", user.id);
   }
 
-  redirect(`/portal/organisation/${organisationSlug}`);
+  const membership = await getActiveMembership(supabase, user.id);
+
+  redirect(getOrganisationPortalRedirect(membership));
 }

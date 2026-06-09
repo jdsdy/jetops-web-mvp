@@ -74,9 +74,9 @@ async function loadOrganisationMemberByUserId(
  */
 export async function POST(
   _request: Request,
-  context: { params: Promise<{ slug: string; memberId: string }> },
+  context: { params: Promise<{ organisationId: string; memberId: string }> },
 ) {
-  const { slug, memberId } = await context.params;
+  const { organisationId, memberId } = await context.params;
   const supabase = await createClient();
   const {
     data: { user },
@@ -89,14 +89,13 @@ export async function POST(
   const { membership, error: adminError } = await requireOrgAdmin(
     supabase,
     user.id,
-    slug,
+    organisationId,
   );
 
   if (adminError || !membership) {
     return jsonError("Forbidden", 403);
   }
 
-  const organisationId = membership.organisations.id;
   const actorMember = await loadOrganisationMemberByUserId(organisationId, user.id);
   const targetMember = await loadOrganisationMember(organisationId, memberId);
 

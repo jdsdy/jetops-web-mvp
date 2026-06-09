@@ -1,6 +1,6 @@
 # Organisation members API
 
-Organisation admins manage members from `/portal/organisation/{slug}` via the user management section.
+Organisation admins manage members from `/portal/organisation/{organisationId}` via the user management section.
 
 ## Requirements
 
@@ -10,7 +10,7 @@ Organisation admins manage members from `/portal/organisation/{slug}` via the us
 
 ## API
 
-### `GET /api/organisations/{slug}/members`
+### `GET /api/organisations/{organisationId}/members`
 
 Lists **active** and **disabled** members for the organisation. Pending members remain on the invites endpoint.
 
@@ -30,7 +30,7 @@ Response: `200`
 ]
 ```
 
-### `POST /api/organisations/{slug}/members/{memberId}`
+### `POST /api/organisations/{organisationId}/members/{memberId}`
 
 Re-enables a **disabled** member.
 
@@ -47,7 +47,7 @@ Response: `200` with the updated member object.
 | 404 | Member not found |
 | 500 | Enable failed |
 
-### `PATCH /api/organisations/{slug}/members/{memberId}`
+### `PATCH /api/organisations/{organisationId}/members/{memberId}`
 
 Partial update. At least one field required.
 
@@ -85,7 +85,7 @@ Response: `200` with the updated member object.
 | 404 | Member not found |
 | 500 | Update failed |
 
-### `DELETE /api/organisations/{slug}/members/{memberId}`
+### `DELETE /api/organisations/{organisationId}/members/{memberId}`
 
 Deactivates a member by setting `status = 'disabled'`. Does not hard-delete the row.
 
@@ -97,7 +97,7 @@ The same ban runs when `PATCH` sets `status` to `disabled`.
 
 Response: `200` with the updated member object.
 
-### `POST /api/organisations/{slug}/members/{memberId}/ownership`
+### `POST /api/organisations/{organisationId}/members/{memberId}/ownership`
 
 Transfers organisation ownership to an **active** member.
 
@@ -124,7 +124,7 @@ The organisation creator receives `is_owner = true` from the `create_organisatio
 
 ## Portal UI
 
-Admins see the **User management** section on `/portal/organisation/{slug}`:
+Admins see the **User management** section on `/portal/organisation/{organisationId}`:
 
 - Active members: edit role, toggle admin, deactivate
 - Disabled members: re-enable

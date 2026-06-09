@@ -1,6 +1,6 @@
 # Organisation fleet
 
-Organisation members view fleet aircraft on `/portal/organisation/{slug}`. Admins can add aircraft from the shared `aircraft_reference` catalogue.
+Organisation members view fleet aircraft on `/portal/organisation/{organisationId}`. Admins can add aircraft from the shared `aircraft_reference` catalogue.
 
 ## Data model
 
@@ -42,7 +42,7 @@ Response: `200`
 ]
 ```
 
-### `GET /api/organisations/{slug}/fleet`
+### `GET /api/organisations/{organisationId}/fleet`
 
 Lists fleet aircraft for the organisation.
 
@@ -63,7 +63,7 @@ Response: `200`
 ]
 ```
 
-### `POST /api/organisations/{slug}/fleet`
+### `POST /api/organisations/{organisationId}/fleet`
 
 Adds an aircraft to the organisation fleet.
 
@@ -98,7 +98,7 @@ Response: `201` with the created fleet aircraft row.
 | 403 | User is not an active admin |
 | 500 | Insert failed |
 
-### `PATCH /api/organisations/{slug}/fleet/{aircraftId}`
+### `PATCH /api/organisations/{organisationId}/fleet/{aircraftId}`
 
 Updates editable fields on a fleet aircraft.
 
@@ -132,7 +132,7 @@ Response: `200` with the updated fleet aircraft row.
 | 404 | Aircraft not found in this organisation |
 | 500 | Update failed |
 
-### `DELETE /api/organisations/{slug}/fleet/{aircraftId}`
+### `DELETE /api/organisations/{organisationId}/fleet/{aircraftId}`
 
 Removes a fleet aircraft from the organisation.
 
@@ -149,7 +149,7 @@ Response: `204` with no body.
 
 ## Portal UI
 
-On `/portal/organisation/{slug}`:
+On `/portal/organisation/{organisationId}`:
 
 - All active members see the fleet list (manufacturer, model, tail number)
 - Admins also see a **Manage** button on each aircraft that opens a dialog to update tail number, seats, RNAV equipped, or delete the aircraft

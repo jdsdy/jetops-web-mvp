@@ -8,12 +8,25 @@ import {
   getOrganisationPortalRedirect,
   isInvitationAcceptable,
   isOrgAdminMembership,
+  normaliseOrganisationId,
   organisationNameToSlug,
   resolveOrganisationCallbackRedirect,
   validateInvitePayload,
   validateMemberUpdatePayload,
   validateOrganisationName,
 } from "@/lib/organisation";
+
+describe("normaliseOrganisationId", () => {
+  it("returns a lowercase uuid", () => {
+    expect(normaliseOrganisationId(" 11111111-1111-4111-8111-111111111111 ")).toBe(
+      "11111111-1111-4111-8111-111111111111",
+    );
+  });
+
+  it("returns null for slug-like route segments", () => {
+    expect(normaliseOrganisationId("jet-operations")).toBeNull();
+  });
+});
 
 describe("organisationNameToSlug", () => {
   it("lowercases and replaces spaces with hyphens", () => {
@@ -177,12 +190,12 @@ describe("getOrganisationPortalRedirect", () => {
     expect(getOrganisationPortalRedirect(null)).toBe("/portal/organisation/setup");
   });
 
-  it("sends users with membership to their organisation slug route", () => {
+  it("sends users with membership to their organisation portal route", () => {
     expect(
       getOrganisationPortalRedirect({
-        organisations: { id: "1", name: "Jet Operations", slug: "jet-operations" },
+        organisations: { id: "org-1", name: "Jet Operations", slug: "jet-operations" },
       }),
-    ).toBe("/portal/organisation/jet-operations");
+    ).toBe("/portal/organisation/org-1");
   });
 });
 
@@ -515,10 +528,10 @@ describe("resolveOrganisationCallbackRedirect", () => {
     ).toEqual({ outcome: "disabled" });
   });
 
-  it("redirects active members to their organisation slug route", () => {
+  it("redirects active members to their organisation portal route", () => {
     expect(resolveOrganisationCallbackRedirect(activeMembership)).toEqual({
       outcome: "redirect",
-      path: "/portal/organisation/jet-operations",
+      path: "/portal/organisation/org-1",
     });
   });
 

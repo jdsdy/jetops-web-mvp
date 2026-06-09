@@ -1,6 +1,6 @@
 # Organisation invites
 
-Organisation admins can invite and manage pending members from `/portal/organisation/{slug}`.
+Organisation admins can invite and manage pending members from `/portal/organisation/{organisationId}`.
 
 ## Requirements
 
@@ -13,7 +13,7 @@ Organisation admins can invite and manage pending members from `/portal/organisa
 
 All invite routes require an authenticated active admin of the organisation.
 
-### `POST /api/organisations/{slug}/invites`
+### `POST /api/organisations/{organisationId}/invites`
 
 Sends an invite email and creates invitation plus pending membership records.
 
@@ -46,7 +46,7 @@ Response: `201`
 | 403 | User is not an active admin of the organisation |
 | 500 | `inviteUserByEmail` or record creation failed |
 
-### `GET /api/organisations/{slug}/invites`
+### `GET /api/organisations/{organisationId}/invites`
 
 Lists **pending** invites: `accepted_at IS NULL` and not expired.
 
@@ -66,7 +66,7 @@ Response: `200`
 
 Uses the service role after the admin check (RLS does not grant admins invite reads).
 
-### `DELETE /api/organisations/{slug}/invites/{inviteId}`
+### `DELETE /api/organisations/{organisationId}/invites/{inviteId}`
 
 Cancels a pending invite:
 
@@ -118,7 +118,7 @@ Routes:
 7. Server action calls `accept_organisation_invitation`, which:
    - Sets `accepted_at = now()`
    - Updates membership `status` from `pending` to `active`
-8. User is redirected to `/portal/organisation/{slug}`.
+8. User is redirected to `/portal/organisation/{organisationId}`.
 
 ## Environment variables
 
