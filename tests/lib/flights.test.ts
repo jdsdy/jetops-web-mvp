@@ -2,18 +2,26 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildFlightPlanStoragePath,
+  buildFlightAnalysisRequestBody,
   formatNotamText,
+  groupAnalysedNotamsByCategory,
   formatFlightExtractionDateTimeForDisplay,
   formatFlightExtractionDateTimeForInput,
   hasFlightExtractionChanges,
+  isAnalysisFinishedJobStatus,
+  isAnalysisInProgressJobStatus,
+  isAnalysisJobPollingStatus,
   isExtractionReadyJobStatus,
+  isFlightAnalysisBegunResponse,
   isFlightExtractionEditableJobStatus,
+  mapAnalysedNotamRow,
   mapFlightExtractionDetails,
   mapRawNotamRow,
   parseFlightExtractionDateTimeInput,
   sanitizeFlightPlanFilename,
   splitFlightExtractionUpdate,
   validateCreateFlightFormData,
+  validateFlightAnalysisRequestPayload,
   validateFlightExtractionUpdatePayload,
 } from "@/lib/flights";
 
@@ -49,10 +57,124 @@ describe("isExtractionReadyJobStatus", () => {
     expect(isExtractionReadyJobStatus("awaiting_confirmation")).toBe(true);
     expect(isExtractionReadyJobStatus("processing_analysis")).toBe(true);
     expect(isExtractionReadyJobStatus("complete")).toBe(true);
+    expect(isExtractionReadyJobStatus("finished")).toBe(true);
   });
 
   it("returns false while extraction is still running", () => {
     expect(isExtractionReadyJobStatus("processing_extraction")).toBe(false);
+  });
+});
+
+describe("isFlightAnalysisBegunResponse", () => {
+  it("returns true for a begun analysis response", () => {
+    expect(isFlightAnalysisBegunResponse({ response_begun: true })).toBe(true);
+  });
+
+  it("returns false for other payloads", () => {
+    expect(isFlightAnalysisBegunResponse({ ok: true })).toBe(false);
+  });
+});
+
+describe("isAnalysisInProgressJobStatus", () => {
+  it("returns true while analysis is running", () => {
+    expect(isAnalysisInProgressJobStatus("processing_analysis")).toBe(true);
+    expect(isAnalysisInProgressJobStatus("finished")).toBe(false);
+  });
+});
+
+describe("isAnalysisJobPollingStatus", () => {
+  it("returns true only while extraction or analysis is processing", () => {
+    expect(isAnalysisJobPollingStatus("processing_extraction")).toBe(true);
+    expect(isAnalysisJobPollingStatus("processing_analysis")).toBe(true);
+    expect(isAnalysisJobPollingStatus("awaiting_confirmation")).toBe(false);
+    expect(isAnalysisJobPollingStatus("finished")).toBe(false);
+    expect(isAnalysisJobPollingStatus("failed")).toBe(false);
+  });
+});
+
+describe("isAnalysisFinishedJobStatus", () => {
+  it("returns true only when analysis has finished", () => {
+    expect(isAnalysisFinishedJobStatus("finished")).toBe(true);
+    expect(isAnalysisFinishedJobStatus("processing_analysis")).toBe(false);
+  });
+});
+
+describe("mapAnalysedNotamRow", () => {
+  it("maps analysed notams with joined raw content", () => {
+    expect(
+      mapAnalysedNotamRow({
+        id: 10,
+        category: 2,
+        summary: "Runway closed overnight",
+        was_cached: true,
+        raw_notams: {
+          id: 1,
+          notam_id: "A1234/26",
+          title: "SYD RWY",
+          q: null,
+          a: "YSSY",
+          b: null,
+          c: null,
+          d: null,
+          e: "RWY 34L CLOSED",
+          f: null,
+          g: null,
+        },
+      }),
+    ).toEqual({
+      id: 10,
+      category: 2,
+      summary: "Runway closed overnight",
+      was_cached: true,
+      raw_notam: {
+        id: 1,
+        notam_id: "A1234/26",
+        title: "SYD RWY",
+        q: null,
+        a: "YSSY",
+        b: null,
+        c: null,
+        d: null,
+        e: "RWY 34L CLOSED",
+        f: null,
+        g: null,
+      },
+    });
+  });
+});
+
+describe("groupAnalysedNotamsByCategory", () => {
+  it("groups notams by ascending category", () => {
+    const notam = (id: number, category: number) => ({
+      id,
+      category,
+      summary: `Summary ${id}`,
+      was_cached: false,
+      raw_notam: {
+        id,
+        notam_id: `N${id}`,
+        title: null,
+        q: null,
+        a: null,
+        b: null,
+        c: null,
+        d: null,
+        e: null,
+        f: null,
+        g: null,
+      },
+    });
+
+    expect(
+      groupAnalysedNotamsByCategory([
+        notam(2, 3),
+        notam(1, 1),
+        notam(3, 3),
+      ]),
+    ).toEqual([
+      { category: 1, notams: [notam(1, 1)] },
+      { category: 3, notams: [notam(2, 3), notam(3, 3)] },
+    ]);
   });
 });
 
@@ -248,6 +370,48 @@ describe("splitFlightExtractionUpdate", () => {
         planned_arr_time: "2026-06-05T12:30:00.000Z",
         alt_icao: "EGKK",
       },
+    });
+  });
+});
+
+describe("validateFlightAnalysisRequestPayload", () => {
+  it("accepts a valid job id", () => {
+    expect(
+      validateFlightAnalysisRequestPayload({
+        job_id: "33333333-3333-4333-8333-333333333333",
+      }),
+    ).toEqual({
+      valid: true,
+      jobId: "33333333-3333-4333-8333-333333333333",
+    });
+  });
+
+  it("rejects an invalid job id", () => {
+    expect(
+      validateFlightAnalysisRequestPayload({
+        job_id: "not-a-uuid",
+      }),
+    ).toEqual({
+      valid: false,
+      error: "Job id is invalid",
+    });
+  });
+});
+
+describe("buildFlightAnalysisRequestBody", () => {
+  it("builds the JetOps analysis request payload", () => {
+    expect(
+      buildFlightAnalysisRequestBody(
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+        "33333333-3333-4333-8333-333333333333",
+        "44444444-4444-4444-8444-444444444444",
+      ),
+    ).toEqual({
+      organisation_id: "11111111-1111-4111-8111-111111111111",
+      flight_id: "22222222-2222-4222-8222-222222222222",
+      job_id: "33333333-3333-4333-8333-333333333333",
+      flight_plan_id: "44444444-4444-4444-8444-444444444444",
     });
   });
 });

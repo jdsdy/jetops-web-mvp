@@ -17,6 +17,81 @@ function jsonError(message: string, status: number) {
 }
 
 /**
+ * Returns the analysis job status for a flight when the caller supplies a job id.
+ */
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ organisationId: string; flightId: string }> },
+) {
+  const { organisationId, flightId } = await context.params;
+  const jobId = new URL(request.url).searchParams.get("jobId")?.trim();
+
+  if (!jobId) {
+    return jsonError("Job id is required", 400);
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return jsonError("Unauthorized", 401);
+  }
+
+  const { membership, error: memberError } = await requireActiveOrganisationMember(
+    supabase,
+    user.id,
+    organisationId,
+  );
+
+  if (memberError || !membership) {
+    return jsonError("Forbidden", 403);
+  }
+
+  const adminClient = createAdminClient();
+  const resolvedOrganisationId = membership.organisations.id;
+
+  const { data: flight, error: flightError } = await adminClient
+    .from("flights")
+    .select("id")
+    .eq("id", flightId)
+    .eq("organisation_id", resolvedOrganisationId)
+    .maybeSingle();
+
+  if (flightError || !flight) {
+    return jsonError("Flight not found", 404);
+  }
+
+  const { data: analysisJob, error: analysisJobError } = await adminClient
+    .from("analysis_jobs")
+    .select("id, status, flight_plan_id")
+    .eq("id", jobId)
+    .eq("organisation_id", resolvedOrganisationId)
+    .maybeSingle();
+
+  if (analysisJobError || !analysisJob) {
+    return jsonError("Analysis job not found", 404);
+  }
+
+  const { data: flightPlan, error: flightPlanError } = await adminClient
+    .from("flight_plans")
+    .select("id")
+    .eq("id", analysisJob.flight_plan_id)
+    .eq("flight_id", flightId)
+    .maybeSingle();
+
+  if (flightPlanError || !flightPlan) {
+    return jsonError("Analysis job not found", 404);
+  }
+
+  return Response.json({
+    job_id: analysisJob.id,
+    status: analysisJob.status,
+  });
+}
+
+/**
  * Updates extracted flight and flight plan fields while awaiting confirmation.
  */
 export async function PATCH(

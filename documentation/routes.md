@@ -58,7 +58,9 @@ Organisation management APIs live under `/api/organisations/{organisationId}/`. 
 | `GET` | `/api/organisations/{organisationId}/fleet` | List organisation fleet (active member) |
 | `POST` | `/api/organisations/{organisationId}/fleet` | Add fleet aircraft (admin) |
 | `POST` | `/api/organisations/{organisationId}/flights` | Create flight with PDF upload and trigger analysis (active member) |
+| `GET` | `/api/organisations/{organisationId}/flights/{flightId}` | Poll analysis job status (`?jobId=`) |
 | `PATCH` | `/api/organisations/{organisationId}/flights/{flightId}` | Update extracted flight details while job is `awaiting_confirmation` |
+| `POST` | `/api/organisations/{organisationId}/flights/{flightId}/analysis` | Trigger downstream analysis after confirmation |
 | `PATCH` | `/api/organisations/{organisationId}/fleet/{aircraftId}` | Update fleet aircraft (admin) |
 | `DELETE` | `/api/organisations/{organisationId}/fleet/{aircraftId}` | Delete fleet aircraft (admin) |
 | `GET` | `/api/organisations/{organisationId}/members` | List active and disabled members (admin) |

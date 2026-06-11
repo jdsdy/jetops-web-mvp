@@ -84,11 +84,34 @@ export type RawNotam = {
   g: string | null;
 };
 
+export type AnalysedNotam = {
+  id: number;
+  category: number;
+  summary: string;
+  was_cached: boolean | null;
+  raw_notam: RawNotam;
+};
+
+export type AnalysedNotamCategoryGroup = {
+  category: number;
+  notams: AnalysedNotam[];
+};
+
 export const EXTRACTION_READY_JOB_STATUSES = [
   "awaiting_confirmation",
   "processing_analysis",
   "complete",
+  "finished",
 ] as const;
+
+export const ANALYSIS_FINISHED_JOB_STATUS = "finished";
+
+/**
+ * Returns whether NOTAM analysis has finished for the job.
+ */
+export function isAnalysisFinishedJobStatus(status: string): boolean {
+  return status === ANALYSIS_FINISHED_JOB_STATUS;
+}
 
 /**
  * Returns whether an analysis job has finished extracting flight plan data.
@@ -274,6 +297,108 @@ export function validateFlightExtractionUpdatePayload(
   return { valid: true, jobId, details };
 }
 
+export type FlightAnalysisRequest = {
+  organisation_id: string;
+  flight_id: string;
+  job_id: string;
+  flight_plan_id: string;
+};
+
+type FlightAnalysisRequestValidationSuccess = {
+  valid: true;
+  jobId: string;
+};
+
+type FlightAnalysisRequestValidationFailure = {
+  valid: false;
+  error: string;
+};
+
+export type FlightAnalysisRequestValidationResult =
+  | FlightAnalysisRequestValidationSuccess
+  | FlightAnalysisRequestValidationFailure;
+
+/**
+ * Validates a POST payload for triggering flight analysis.
+ */
+export function validateFlightAnalysisRequestPayload(
+  body: unknown,
+): FlightAnalysisRequestValidationResult {
+  if (!body || typeof body !== "object") {
+    return { valid: false, error: "Request body is required" };
+  }
+
+  const jobId = String((body as Record<string, unknown>).job_id ?? "").trim();
+
+  if (!jobId) {
+    return { valid: false, error: "Job id is required" };
+  }
+
+  if (!UUID_PATTERN.test(jobId)) {
+    return { valid: false, error: "Job id is invalid" };
+  }
+
+  return { valid: true, jobId };
+}
+
+/**
+ * Builds the JetOps analysis request body.
+ */
+export function buildFlightAnalysisRequestBody(
+  organisationId: string,
+  flightId: string,
+  jobId: string,
+  flightPlanId: string,
+): FlightAnalysisRequest {
+  return {
+    organisation_id: organisationId,
+    flight_id: flightId,
+    job_id: jobId,
+    flight_plan_id: flightPlanId,
+  };
+}
+
+export type FlightAnalysisBegunResponse = {
+  response_begun: true;
+};
+
+export const ANALYSIS_IN_PROGRESS_JOB_STATUS = "processing_analysis";
+
+export const ANALYSIS_JOB_POLLING_STATUSES = [
+  "processing_extraction",
+  "processing_analysis",
+] as const;
+
+/**
+ * Returns whether the flights page should poll for job status updates.
+ */
+export function isAnalysisJobPollingStatus(status: string): boolean {
+  return ANALYSIS_JOB_POLLING_STATUSES.includes(
+    status as (typeof ANALYSIS_JOB_POLLING_STATUSES)[number],
+  );
+}
+
+/**
+ * Returns whether the external analysis service has begun processing.
+ */
+export function isFlightAnalysisBegunResponse(
+  body: unknown,
+): body is FlightAnalysisBegunResponse {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    "response_begun" in body &&
+    (body as FlightAnalysisBegunResponse).response_begun === true
+  );
+}
+
+/**
+ * Returns whether NOTAM analysis is currently running for the job.
+ */
+export function isAnalysisInProgressJobStatus(status: string): boolean {
+  return status === ANALYSIS_IN_PROGRESS_JOB_STATUS;
+}
+
 /**
  * Splits extracted details into flight and flight plan update payloads.
  */
@@ -417,6 +542,34 @@ type RawNotamRow = {
   f: string | null;
   g: string | null;
 };
+
+type AnalysedNotamRow = {
+  id: number;
+  category: number;
+  summary: string;
+  was_cached: boolean | null;
+  raw_notams: RawNotamRow | RawNotamRow[] | null;
+};
+
+const ANALYSED_NOTAM_SELECT = `
+  id,
+  category,
+  summary,
+  was_cached,
+  raw_notams (
+    id,
+    notam_id,
+    title,
+    q,
+    a,
+    b,
+    c,
+    d,
+    e,
+    f,
+    g
+  )
+` as const;
 
 type FlightRow = {
   id: string;
@@ -708,4 +861,76 @@ export async function getRawNotamsForAnalysis(
   }
 
   return (data as RawNotamRow[]).map(mapRawNotamRow);
+}
+
+/**
+ * Maps a joined analysed NOTAM row to a display model.
+ */
+export function mapAnalysedNotamRow(row: AnalysedNotamRow): AnalysedNotam | null {
+  const rawNotam = firstRelation(row.raw_notams);
+
+  if (!rawNotam) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    category: row.category,
+    summary: row.summary,
+    was_cached: row.was_cached,
+    raw_notam: mapRawNotamRow(rawNotam),
+  };
+}
+
+/**
+ * Groups analysed NOTAMs by category in ascending order.
+ */
+export function groupAnalysedNotamsByCategory(
+  notams: AnalysedNotam[],
+): AnalysedNotamCategoryGroup[] {
+  const groups = new Map<number, AnalysedNotam[]>();
+
+  for (const notam of notams) {
+    const existing = groups.get(notam.category) ?? [];
+    existing.push(notam);
+    groups.set(notam.category, existing);
+  }
+
+  return [...groups.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([category, categoryNotams]) => ({
+      category,
+      notams: categoryNotams,
+    }));
+}
+
+/**
+ * Loads analysed NOTAMs with raw NOTAM content for an analysis job and flight plan.
+ */
+export async function getAnalysedNotamsForAnalysis(
+  supabase: SupabaseClient,
+  analysisJobId: string,
+  flightPlanId: string,
+): Promise<AnalysedNotamCategoryGroup[]> {
+  if (!flightPlanId) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("analysed_notams")
+    .select(ANALYSED_NOTAM_SELECT)
+    .eq("anaysis_job_id", analysisJobId)
+    .eq("flight_plan_id", flightPlanId)
+    .order("category", { ascending: true })
+    .order("id", { ascending: true });
+
+  if (error || !data) {
+    return [];
+  }
+
+  const notams = (data as AnalysedNotamRow[])
+    .map(mapAnalysedNotamRow)
+    .filter((notam): notam is AnalysedNotam => notam !== null);
+
+  return groupAnalysedNotamsByCategory(notams);
 }

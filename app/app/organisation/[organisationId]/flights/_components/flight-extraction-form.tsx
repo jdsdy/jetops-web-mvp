@@ -6,6 +6,7 @@ import {
   formatFlightExtractionDateTimeForDisplay,
   formatFlightExtractionDateTimeForInput,
   hasFlightExtractionChanges,
+  isFlightAnalysisBegunResponse,
   parseFlightExtractionDateTimeInput,
   type FlightExtractionDetails,
 } from "@/lib/flights";
@@ -13,10 +14,12 @@ import {
 type FlightExtractionFormProps = {
   organisationId: string;
   flightId: string;
+  flightPlanId: string;
   jobId: string;
   savedDetails: FlightExtractionDetails;
   editable: boolean;
   onSaved: (details: FlightExtractionDetails) => void;
+  onAnalysisBegun: () => void;
 };
 
 type ApiErrorResponse = {
@@ -85,14 +88,18 @@ function getDraftFieldValue(
 export function FlightExtractionForm({
   organisationId,
   flightId,
+  flightPlanId,
   jobId,
   savedDetails,
   editable,
   onSaved,
+  onAnalysisBegun,
 }: FlightExtractionFormProps) {
   const [draftDetails, setDraftDetails] = useState(savedDetails);
   const [savePending, setSavePending] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [analysePending, setAnalysePending] = useState(false);
+  const [analyseError, setAnalyseError] = useState<string | null>(null);
 
   useEffect(() => {
     setDraftDetails(savedDetails);
@@ -157,10 +164,41 @@ export function FlightExtractionForm({
   }
 
   /**
-   * Placeholder for triggering downstream analysis after confirmation.
+   * Triggers downstream analysis for the confirmed flight plan extraction.
    */
-  function handleAnalyse() {
-    return;
+  async function handleAnalyse() {
+    setAnalysePending(true);
+    setAnalyseError(null);
+
+    const response = await fetch(
+      `/api/organisations/${organisationId}/flights/${flightId}/analysis`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          job_id: jobId,
+        }),
+      },
+    );
+    const result: unknown = await response.json();
+
+    if (!response.ok) {
+      const errorResult = result as ApiErrorResponse;
+      setAnalyseError(errorResult.error ?? "Failed to start analysis");
+      setAnalysePending(false);
+      return;
+    }
+
+    if (!isFlightAnalysisBegunResponse(result)) {
+      setAnalyseError("Analysis service did not begin processing");
+      setAnalysePending(false);
+      return;
+    }
+
+    onAnalysisBegun();
+    setAnalysePending(false);
   }
 
   return (
@@ -170,42 +208,42 @@ export function FlightExtractionForm({
       {saveError ? <p role="alert">{saveError}</p> : null}
 
       {editable ? (
-        <>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              void handleSave();
-            }}
-          >
-            {EXTRACTION_FIELDS.map(({ key, label, inputType }) => (
-              <div key={key}>
-                <label htmlFor={key}>{label}</label>
-                <input
-                  id={key}
-                  name={key}
-                  type={inputType}
-                  value={getDraftFieldValue(draftDetails, key, inputType)}
-                  onChange={(event) =>
-                    handleFieldChange(key, inputType, event.target.value)
-                  }
-                />
-              </div>
-            ))}
-
-            <div>
-              <button type="submit" disabled={savePending || !hasUnsavedChanges}>
-                Save changes
-              </button>
-              <button
-                type="button"
-                disabled={hasUnsavedChanges}
-                onClick={handleAnalyse}
-              >
-                Analyse
-              </button>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleSave();
+          }}
+        >
+          {EXTRACTION_FIELDS.map(({ key, label, inputType }) => (
+            <div key={key}>
+              <label htmlFor={key}>{label}</label>
+              <input
+                id={key}
+                name={key}
+                type={inputType}
+                value={getDraftFieldValue(draftDetails, key, inputType)}
+                onChange={(event) =>
+                  handleFieldChange(key, inputType, event.target.value)
+                }
+              />
             </div>
-          </form>
-        </>
+          ))}
+
+          <div>
+            <button type="submit" disabled={savePending || !hasUnsavedChanges}>
+              Save changes
+            </button>
+            <button
+              type="button"
+              disabled={hasUnsavedChanges || analysePending || !flightPlanId}
+              onClick={() => {
+                void handleAnalyse();
+              }}
+            >
+              Analyse
+            </button>
+          </div>
+        </form>
       ) : (
         <dl>
           {EXTRACTION_FIELDS.map(({ key, label, inputType }) => (
@@ -216,6 +254,8 @@ export function FlightExtractionForm({
           ))}
         </dl>
       )}
+
+      {analyseError ? <p role="alert">{analyseError}</p> : null}
     </section>
   );
 }

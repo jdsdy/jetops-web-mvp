@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { FlightExtractionDetailsSection } from "@/app/app/organisation/[organisationId]/flights/_components/flight-extraction-details";
 import { LogoutButton } from "@/components/logout-button";
-import { getFlightExtractionDetails } from "@/lib/flights";
+import { getFlightExtractionResult } from "@/lib/flights";
 import {
   getOrganisationAppPath,
   resolveOrganisationAppRouteAccess,
@@ -52,13 +52,13 @@ export default async function OrganisationFlightsPage({
     redirect(appHomePath);
   }
 
-  const extractionDetails = await getFlightExtractionDetails(
+  const extractionResult = await getFlightExtractionResult(
     supabase,
     flightId,
     membership.organisations.id,
   );
 
-  if (!extractionDetails) {
+  if (!extractionResult) {
     redirect(appHomePath);
   }
 
@@ -68,8 +68,9 @@ export default async function OrganisationFlightsPage({
       <FlightExtractionDetailsSection
         organisationId={membership.organisations.id}
         flightId={flightId}
+        flightPlanId={extractionResult.flightPlanId}
         jobId={jobId}
-        initialDetails={extractionDetails}
+        initialDetails={extractionResult.details}
       />
       <Link href={appHomePath}>
         <button type="button">Back to app home</button>

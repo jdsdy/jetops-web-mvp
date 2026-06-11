@@ -8,7 +8,7 @@ type RawNotamsListProps = {
   notams: RawNotam[];
 };
 
-const NOTAM_FIELDS: {
+const RAW_NOTAM_DISPLAY_FIELDS: {
   key: keyof Omit<RawNotam, "id" | "notam_id">;
   label: string;
 }[] = [
@@ -23,10 +23,12 @@ const NOTAM_FIELDS: {
   { key: "g", label: "G" },
 ];
 
+export { RAW_NOTAM_DISPLAY_FIELDS };
+
 /**
  * Returns whether a NOTAM field has displayable text.
  */
-function hasNotamFieldValue(value: string | null): boolean {
+export function hasRawNotamFieldValue(value: string | null): boolean {
   return Boolean(value?.trim());
 }
 
@@ -54,8 +56,9 @@ export function RawNotamsList({ notams }: RawNotamsListProps) {
             <li key={notam.id}>
               <h3>{notam.notam_id}</h3>
               <dl>
-                {NOTAM_FIELDS.filter(({ key }) => hasNotamFieldValue(notam[key])).map(
-                  ({ key, label }) => (
+                {RAW_NOTAM_DISPLAY_FIELDS.filter(({ key }) =>
+                  hasRawNotamFieldValue(notam[key]),
+                ).map(({ key, label }) => (
                     <div key={key}>
                       <dt>{label}</dt>
                       <dd style={{ whiteSpace: "pre-wrap" }}>{notam[key]}</dd>
