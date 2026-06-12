@@ -2,7 +2,7 @@
 
 | Path | Auth required | Description |
 | --- | --- | --- |
-| `/` | No | Home page with **Go to login** |
+| `/` | No | Landing page; **Sign in** links to `/auth` |
 | `/auth` | No | Login and signup form |
 | `/onboarding` | Yes | Name collection step |
 | `/portal/callback` | Yes (organisation) | Resolves membership; signs out disabled users |

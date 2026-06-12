@@ -1,8 +1,22 @@
 import type { Metadata } from "next";
+import { Public_Sans } from "next/font/google";
+
+import "./globals.css";
+
+const publicSans = Public_Sans({
+  subsets: ["latin"],
+  variable: "--font-public-sans",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "JetOps",
-  description: "JetOps web application",
+  title: "Jet Operations",
+  description:
+    "Upload flight plans, extract route details, and review analysed NOTAMs for your organisation.",
+  icons: {
+    icon: "/logo_square.png",
+    apple: "/logo_square.png",
+  },
 };
 
 export default function RootLayout({
@@ -11,11 +25,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className="h-full antialiased"
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" className={`${publicSans.variable} h-full antialiased`}>
+      <body className="flex min-h-full flex-col bg-white font-sans text-neutral-900">
+        {children}
+      </body>
     </html>
   );
 }
