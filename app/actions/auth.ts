@@ -6,6 +6,7 @@ import {
   getPostOnboardingPath,
   getRedirectForProfile,
   validateOnboardingFields,
+  validateSignupCode,
 } from "@/lib/auth";
 import { getSiteUrl } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
@@ -67,6 +68,13 @@ export async function signUp(
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
   const accountType = String(formData.get("account_type") ?? "");
+  const signupCode = String(formData.get("signup_code") ?? "");
+
+  const signupCodeValidation = await validateSignupCode(signupCode);
+
+  if (!signupCodeValidation.valid) {
+    return { error: signupCodeValidation.error };
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signUp({

@@ -11,6 +11,8 @@ Copy `.env.example` to `.env.local` and set:
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable (anon) API key |
 | `NEXT_PUBLIC_SITE_URL` | Public site URL used for email confirmation redirects |
+| `JETOPS_API_URL` | JetOps API base URL used for signup-code validation |
+| `JETOPS_API_KEY` | Server-side API key sent as `X-API-KEY` |
 
 The Jet Ops MVP project URL is `https://wohclkrdcyykdjqzczgy.supabase.co`.
 
@@ -20,17 +22,21 @@ The Jet Ops MVP project URL is `https://wohclkrdcyykdjqzczgy.supabase.co`.
 | --- | --- |
 | `/` | Home page with a link to login |
 | `/auth` | Email/password login and signup |
-| `/auth/callback` | Exchanges email confirmation codes for a session |
+| `/auth/callback` | Shows a loader while exchanging email confirmation codes for a session |
 | `/onboarding` | Collects first name and last name initial |
 
 ## Signup flow
 
 1. User opens `/auth` and switches to **Create an account**.
-2. User submits email, password, and account type (`organisation` or `personal`).
-3. `signUp` stores `account_type` in `raw_user_meta_data`.
-4. A database trigger (`handle_new_user`) creates a row in `public.profiles`.
-5. Supabase sends a confirmation email linking to `/auth/callback?next=/onboarding`.
-6. The callback route exchanges the code for a session, then redirects to onboarding.
+2. User submits email, password, signup code, and account type (`organisation` or `personal`).
+3. `signUp` calls `GET {JETOPS_API_URL}/v1/signup` with `X-API-KEY` and a JSON body `{ "code": "<signup_code>" }`. A `400` response blocks signup and shows the API error message; `200` continues.
+4. `signUp` stores `account_type` in `raw_user_meta_data`.
+5. A database trigger (`handle_new_user`) creates a row in `public.profiles`.
+6. Supabase sends a confirmation email redirecting to `/auth`.
+
+## Auth page UI
+
+`/auth` reuses the landing header and footer and presents a centred form card on `bg-neutral-50`. Styling uses the shared theme tokens from `app/globals.css` (`aviation-blue`, `aviation-navy`, `aviation-slate`). Forms prioritise readable labels, clear alerts, and minimal decoration.
 
 ## Login flow
 

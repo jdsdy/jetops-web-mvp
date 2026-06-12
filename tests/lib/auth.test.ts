@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   ACCOUNT_TYPES,
@@ -12,6 +12,7 @@ import {
   isValidAccountType,
   parseInviteUrl,
   validateOnboardingFields,
+  validateSignupCode,
 } from "@/lib/auth";
 
 describe("isValidAccountType", () => {
@@ -277,5 +278,69 @@ describe("hasInviteAuthParams", () => {
         refreshToken: null,
       }),
     ).toBe(false);
+  });
+});
+
+describe("validateSignupCode", () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    vi.stubEnv("JETOPS_API_KEY", "test-api-key");
+    vi.stubEnv("JETOPS_API_URL", "http://api.test");
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    fetchMock.mockReset();
+  });
+
+  it("rejects an empty signup code", async () => {
+    await expect(validateSignupCode("   ")).resolves.toEqual({
+      valid: false,
+      error: "Signup code is required",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts a valid signup code", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 200 }));
+
+    await expect(validateSignupCode("beta-access")).resolves.toEqual({
+      valid: true,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://api.test/v1/signup", {
+      method: "GET",
+      headers: {
+        "X-API-KEY": "test-api-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ code: "beta-access" }),
+    });
+  });
+
+  it("rejects an invalid signup code with the API error message", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ detail: "Signup code is not valid" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(validateSignupCode("bad-code")).resolves.toEqual({
+      valid: false,
+      error: "Signup code is not valid",
+    });
+  });
+
+  it("rejects when the API is unavailable", async () => {
+    fetchMock.mockRejectedValue(new Error("network error"));
+
+    await expect(validateSignupCode("beta-access")).resolves.toEqual({
+      valid: false,
+      error: "Unable to verify signup code",
+    });
   });
 });

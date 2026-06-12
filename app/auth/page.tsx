@@ -1,6 +1,6 @@
-import Link from "next/link";
-
 import { AuthForm } from "@/app/auth/_components/auth-form";
+import { LandingFooter } from "@/components/landing-footer";
+import { LandingHeader } from "@/components/landing-header";
 import {
   DISABLED_MEMBER_AUTH_ERROR,
   DISABLED_MEMBER_MESSAGE,
@@ -18,11 +18,16 @@ export default async function AuthPage({ searchParams }: AuthPageProps) {
     error === DISABLED_MEMBER_AUTH_ERROR ? DISABLED_MEMBER_MESSAGE : undefined;
 
   return (
-    <main>
-      <AuthForm initialError={initialError} />
-      <Link href="/">
-        <button type="button">Back to home</button>
-      </Link>
-    </main>
+    <>
+      <LandingHeader />
+
+      <main className="flex flex-1 items-center justify-center bg-neutral-50 px-6 py-12">
+        <div className="w-full max-w-md">
+          <AuthForm initialError={initialError} />
+        </div>
+      </main>
+
+      <LandingFooter />
+    </>
   );
 }

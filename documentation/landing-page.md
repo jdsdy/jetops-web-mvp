@@ -122,6 +122,10 @@ Use this for header and hero sign-in actions. Re-export rather than duplicating 
 font-medium text-aviation-navy transition-colors hover:text-aviation-blue
 ```
 
+### Footer disclaimer
+
+Plain text below the footer tagline (`mt-3 text-sm text-aviation-slate`): closed testing phase notice; public use is not available.
+
 ## Motion
 
 Animation is intentionally minimal. Only the hero uses entrance motion:

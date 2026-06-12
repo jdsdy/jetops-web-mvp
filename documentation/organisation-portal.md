@@ -42,7 +42,7 @@ The helper `private.is_active_org_member` checks for an **active** membership in
 
 | Path | Behaviour |
 | --- | --- |
-| `/portal/callback` | Resolves membership; disabled users are signed out with an error message |
+| `/portal/callback` | Shows `CallbackLoader` while resolving membership; disabled users are signed out with an error message |
 | `/portal/organisation` | Redirects to `/portal/callback` |
 | `/portal/organisation/setup` | Create organisation form (skipped if membership exists) |
 | `/portal/organisation/{organisationId}` | Organisation portal for an active member |

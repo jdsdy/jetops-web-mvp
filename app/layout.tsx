@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Public_Sans } from "next/font/google";
+import NextTopLoader from "nextjs-toploader";
 
 import "./globals.css";
 
@@ -27,6 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${publicSans.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col bg-white font-sans text-neutral-900">
+        <NextTopLoader />
         {children}
       </body>
     </html>

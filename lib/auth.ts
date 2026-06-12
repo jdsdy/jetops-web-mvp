@@ -1,3 +1,5 @@
+import { getJetOpsApiKey, getJetOpsApiUrl } from "@/lib/env";
+
 export const ACCOUNT_TYPES = ["organisation", "personal"] as const;
 
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
@@ -222,4 +224,66 @@ export function hasInviteAuthParams(params: InviteUrlParams): boolean {
   }
 
   return params.tokenHash !== null && params.type === "invite";
+}
+
+export type SignupCodeValidationResult =
+  | { valid: true }
+  | { valid: false; error: string };
+
+/**
+ * Verifies a closed-beta signup code with the JetOps API before registration.
+ */
+export async function validateSignupCode(
+  code: string,
+): Promise<SignupCodeValidationResult> {
+  const trimmedCode = code.trim();
+
+  if (!trimmedCode) {
+    return { valid: false, error: "Signup code is required" };
+  }
+
+  const apiKey = getJetOpsApiKey();
+
+  if (!apiKey) {
+    return { valid: false, error: "Signup is temporarily unavailable" };
+  }
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${getJetOpsApiUrl()}/v1/signup`, {
+      method: "GET",
+      headers: {
+        "X-API-KEY": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ code: trimmedCode }),
+    });
+  } catch {
+    return { valid: false, error: "Unable to verify signup code" };
+  }
+
+  if (response.ok) {
+    return { valid: true };
+  }
+
+  if (response.status === 400) {
+    try {
+      const data = (await response.json()) as {
+        detail?: string;
+        message?: string;
+      };
+      const message = data.detail ?? data.message;
+
+      if (message) {
+        return { valid: false, error: message };
+      }
+    } catch {
+      // Fall through to the default invalid-code message.
+    }
+
+    return { valid: false, error: "Invalid signup code" };
+  }
+
+  return { valid: false, error: "Unable to verify signup code" };
 }
