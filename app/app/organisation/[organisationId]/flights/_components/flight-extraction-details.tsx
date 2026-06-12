@@ -6,15 +6,20 @@ import { AnalysedNotamsList } from "@/app/app/organisation/[organisationId]/flig
 import { FlightExtractionForm } from "@/app/app/organisation/[organisationId]/flights/_components/flight-extraction-form";
 import { RawNotamsList } from "@/app/app/organisation/[organisationId]/flights/_components/raw-notams-list";
 import {
-  getAnalysedNotamsForAnalysis,
+  getFlightAnalysedNotamsSnapshot,
   getFlightExtractionResult,
   getRawNotamsForAnalysis,
   isAnalysisFinishedJobStatus,
   isAnalysisInProgressJobStatus,
   isAnalysisJobPollingStatus,
+  isAnalysisPartialFinishJobStatus,
+  isAnalysisResultsReadyJobStatus,
+  isAnalysisRetryingJobStatus,
   isExtractionReadyJobStatus,
   isFlightExtractionEditableJobStatus,
+  type AnalysedNotam,
   type AnalysedNotamCategoryGroup,
+  type FlightAnalysedNotamsSnapshot,
   type FlightExtractionDetails,
   type RawNotam,
 } from "@/lib/flights";
@@ -28,11 +33,43 @@ type FlightExtractionDetailsProps = {
   flightPlanId: string;
   initialDetails: FlightExtractionDetails;
   jobId: string;
+  initialJobStatus: string;
+  initialAnalysedSnapshot: FlightAnalysedNotamsSnapshot | null;
+  initialRawNotams: RawNotam[];
 };
 
 type FlightJobStatusResponse = {
   status?: string;
 };
+
+/**
+ * Applies an analysed NOTAM snapshot to component state.
+ */
+function applyAnalysedSnapshot(
+  snapshot: FlightAnalysedNotamsSnapshot,
+  status: string,
+  setters: {
+    setAnalysedNotamGroups: (groups: AnalysedNotamCategoryGroup[]) => void;
+    setPendingAnalysedNotamCount: (count: number) => void;
+    setFailedNotams: (notams: AnalysedNotam[]) => void;
+    setUnclassifiedNotams: (notams: RawNotam[]) => void;
+    setShowAnalysedNotams: (show: boolean) => void;
+    setAnalysisBegun: (begun: boolean) => void;
+  },
+) {
+  setters.setAnalysedNotamGroups(snapshot.classifiedGroups);
+  setters.setPendingAnalysedNotamCount(snapshot.pendingCount);
+  setters.setFailedNotams(snapshot.failedNotams);
+  setters.setUnclassifiedNotams(snapshot.unclassifiedRawNotams);
+  setters.setShowAnalysedNotams(isAnalysisResultsReadyJobStatus(status));
+
+  if (
+    isAnalysisFinishedJobStatus(status) ||
+    isAnalysisPartialFinishJobStatus(status)
+  ) {
+    setters.setAnalysisBegun(false);
+  }
+}
 
 /**
  * Tracks analysis job status and loads extracted fields once extraction completes.
@@ -43,20 +80,41 @@ export function FlightExtractionDetailsSection({
   flightPlanId: initialFlightPlanId,
   initialDetails,
   jobId,
+  initialJobStatus,
+  initialAnalysedSnapshot,
+  initialRawNotams,
 }: FlightExtractionDetailsProps) {
-  const [jobStatus, setJobStatus] = useState<string | null>(null);
+  const extractionReadyInitially = isExtractionReadyJobStatus(initialJobStatus);
+  const resultsReadyInitially = isAnalysisResultsReadyJobStatus(initialJobStatus);
+
+  const [jobStatus, setJobStatus] = useState<string>(initialJobStatus);
   const [savedDetails, setSavedDetails] = useState(initialDetails);
   const [flightPlanId, setFlightPlanId] = useState(initialFlightPlanId);
-  const [notams, setNotams] = useState<RawNotam[]>([]);
-  const [analysedNotamGroups, setAnalysedNotamGroups] = useState<
-    AnalysedNotamCategoryGroup[]
-  >([]);
-  const [showExtraction, setShowExtraction] = useState(false);
-  const [showAnalysedNotams, setShowAnalysedNotams] = useState(false);
-  const [analysisBegun, setAnalysisBegun] = useState(false);
+  const [notams, setNotams] = useState<RawNotam[]>(initialRawNotams);
+  const [analysedNotamGroups, setAnalysedNotamGroups] = useState(
+    initialAnalysedSnapshot?.classifiedGroups ?? [],
+  );
+  const [pendingAnalysedNotamCount, setPendingAnalysedNotamCount] = useState(
+    initialAnalysedSnapshot?.pendingCount ?? 0,
+  );
+  const [failedNotams, setFailedNotams] = useState<AnalysedNotam[]>(
+    initialAnalysedSnapshot?.failedNotams ?? [],
+  );
+  const [unclassifiedNotams, setUnclassifiedNotams] = useState<RawNotam[]>(
+    initialAnalysedSnapshot?.unclassifiedRawNotams ?? [],
+  );
+  const [showExtraction, setShowExtraction] = useState(extractionReadyInitially);
+  const [showAnalysedNotams, setShowAnalysedNotams] =
+    useState(resultsReadyInitially);
+  const [analysisBegun, setAnalysisBegun] = useState(
+    isAnalysisInProgressJobStatus(initialJobStatus) ||
+      isAnalysisRetryingJobStatus(initialJobStatus),
+  );
   const [pollingTrigger, setPollingTrigger] = useState(0);
-  const extractionLoadedRef = useRef(false);
-  const analysedLoadedRef = useRef(false);
+  const extractionLoadedRef = useRef(extractionReadyInitially);
+  const analysedLoadedRef = useRef(
+    resultsReadyInitially && !isAnalysisRetryingJobStatus(initialJobStatus),
+  );
 
   const loadExtractionDetails = useCallback(async () => {
     const supabase = createClient();
@@ -79,14 +137,31 @@ export function FlightExtractionDetailsSection({
     setShowExtraction(true);
   }, [flightId, jobId]);
 
-  const loadAnalysedNotams = useCallback(async (planId: string) => {
-    const supabase = createClient();
-    const groups = await getAnalysedNotamsForAnalysis(supabase, jobId, planId);
+  const loadAnalysedNotams = useCallback(
+    async (planId: string, status: string) => {
+      const supabase = createClient();
+      const snapshot = await getFlightAnalysedNotamsSnapshot(
+        supabase,
+        jobId,
+        planId,
+        { includeUnclassifiedRaw: isAnalysisPartialFinishJobStatus(status) },
+      );
 
-    analysedLoadedRef.current = true;
-    setAnalysedNotamGroups(groups);
-    setShowAnalysedNotams(true);
-  }, [jobId]);
+      if (!isAnalysisRetryingJobStatus(status)) {
+        analysedLoadedRef.current = true;
+      }
+
+      applyAnalysedSnapshot(snapshot, status, {
+        setAnalysedNotamGroups,
+        setPendingAnalysedNotamCount,
+        setFailedNotams,
+        setUnclassifiedNotams,
+        setShowAnalysedNotams,
+        setAnalysisBegun,
+      });
+    },
+    [jobId],
+  );
 
   const handleJobStatus = useCallback(
     (nextStatus: string, previousStatus: string | null) => {
@@ -106,14 +181,16 @@ export function FlightExtractionDetailsSection({
         }
       }
 
-      if (isAnalysisFinishedJobStatus(nextStatus) && !analysedLoadedRef.current) {
+      if (isAnalysisResultsReadyJobStatus(nextStatus)) {
         const planId = flightPlanId || initialFlightPlanId;
+        const shouldLoadAnalysedNotams =
+          planId &&
+          (isAnalysisRetryingJobStatus(nextStatus) ||
+            !analysedLoadedRef.current);
 
-        if (planId) {
-          void loadAnalysedNotams(planId);
+        if (shouldLoadAnalysedNotams) {
+          void loadAnalysedNotams(planId, nextStatus);
         }
-
-        setAnalysisBegun(false);
       }
     },
     [
@@ -126,7 +203,7 @@ export function FlightExtractionDetailsSection({
 
   useEffect(() => {
     let cancelled = false;
-    let previousStatus: string | null = null;
+    let previousStatus: string | null = initialJobStatus;
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
     async function fetchJobStatus(): Promise<string | null> {
@@ -148,7 +225,7 @@ export function FlightExtractionDetailsSection({
     }
 
     function applyJobStatus(nextStatus: string) {
-      if (cancelled) {
+      if (cancelled || nextStatus === previousStatus) {
         return;
       }
 
@@ -164,7 +241,7 @@ export function FlightExtractionDetailsSection({
       const nextStatus = await fetchJobStatus();
 
       if (!nextStatus) {
-        return false;
+        return isAnalysisJobPollingStatus(jobStatus);
       }
 
       applyJobStatus(nextStatus);
@@ -197,33 +274,41 @@ export function FlightExtractionDetailsSection({
         clearInterval(intervalId);
       }
     };
-  }, [organisationId, flightId, jobId, handleJobStatus, pollingTrigger]);
+  }, [
+    organisationId,
+    flightId,
+    jobId,
+    handleJobStatus,
+    pollingTrigger,
+    initialJobStatus,
+    jobStatus,
+  ]);
 
   useEffect(() => {
     if (
-      !isAnalysisFinishedJobStatus(jobStatus ?? "") ||
-      analysedLoadedRef.current ||
+      !isAnalysisResultsReadyJobStatus(jobStatus) ||
+      (!isAnalysisRetryingJobStatus(jobStatus) && analysedLoadedRef.current) ||
       !flightPlanId
     ) {
       return;
     }
 
-    void loadAnalysedNotams(flightPlanId);
+    void loadAnalysedNotams(flightPlanId, jobStatus);
   }, [flightPlanId, jobStatus, loadAnalysedNotams]);
 
-  const editable =
-    jobStatus !== null && isFlightExtractionEditableJobStatus(jobStatus);
+  const editable = isFlightExtractionEditableJobStatus(jobStatus);
 
   const showAnalysisInProgress =
     !showAnalysedNotams &&
     (analysisBegun ||
-      (jobStatus !== null && isAnalysisInProgressJobStatus(jobStatus)));
+      isAnalysisInProgressJobStatus(jobStatus) ||
+      isAnalysisRetryingJobStatus(jobStatus));
 
   return (
     <>
       <section>
         <h2>Flight analysis</h2>
-        <p>Status: {jobStatus ?? "Loading..."}</p>
+        <p>Status: {jobStatus}</p>
       </section>
 
       {showExtraction ? (
@@ -253,7 +338,12 @@ export function FlightExtractionDetailsSection({
       ) : null}
 
       {showAnalysedNotams ? (
-        <AnalysedNotamsList groups={analysedNotamGroups} />
+        <AnalysedNotamsList
+          groups={analysedNotamGroups}
+          pendingCount={pendingAnalysedNotamCount}
+          failedNotams={failedNotams}
+          unclassifiedNotams={unclassifiedNotams}
+        />
       ) : null}
     </>
   );

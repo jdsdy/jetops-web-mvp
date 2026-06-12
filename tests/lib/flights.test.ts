@@ -4,6 +4,7 @@ import {
   buildFlightPlanStoragePath,
   buildFlightAnalysisRequestBody,
   formatNotamText,
+  buildFlightAnalysedNotamsSnapshot,
   groupAnalysedNotamsByCategory,
   formatFlightExtractionDateTimeForDisplay,
   formatFlightExtractionDateTimeForInput,
@@ -11,6 +12,12 @@ import {
   isAnalysisFinishedJobStatus,
   isAnalysisInProgressJobStatus,
   isAnalysisJobPollingStatus,
+  isAnalysisPartialFinishJobStatus,
+  isAnalysisResultsReadyJobStatus,
+  isAnalysisRetryingJobStatus,
+  isAnalysedNotamClassified,
+  isAnalysedNotamFailed,
+  isAnalysedNotamPending,
   isExtractionReadyJobStatus,
   isFlightAnalysisBegunResponse,
   isFlightExtractionEditableJobStatus,
@@ -23,6 +30,7 @@ import {
   validateCreateFlightFormData,
   validateFlightAnalysisRequestPayload,
   validateFlightExtractionUpdatePayload,
+  type RawNotam,
 } from "@/lib/flights";
 
 describe("buildFlightPlanStoragePath", () => {
@@ -86,9 +94,34 @@ describe("isAnalysisJobPollingStatus", () => {
   it("returns true only while extraction or analysis is processing", () => {
     expect(isAnalysisJobPollingStatus("processing_extraction")).toBe(true);
     expect(isAnalysisJobPollingStatus("processing_analysis")).toBe(true);
+    expect(isAnalysisJobPollingStatus("retrying")).toBe(true);
     expect(isAnalysisJobPollingStatus("awaiting_confirmation")).toBe(false);
     expect(isAnalysisJobPollingStatus("finished")).toBe(false);
+    expect(isAnalysisJobPollingStatus("partial_finish")).toBe(false);
     expect(isAnalysisJobPollingStatus("failed")).toBe(false);
+  });
+});
+
+describe("isAnalysisRetryingJobStatus", () => {
+  it("returns true only while analysis is retrying failed points", () => {
+    expect(isAnalysisRetryingJobStatus("retrying")).toBe(true);
+    expect(isAnalysisRetryingJobStatus("processing_analysis")).toBe(false);
+  });
+});
+
+describe("isAnalysisPartialFinishJobStatus", () => {
+  it("returns true only when analysis ended with unclassified notams", () => {
+    expect(isAnalysisPartialFinishJobStatus("partial_finish")).toBe(true);
+    expect(isAnalysisPartialFinishJobStatus("finished")).toBe(false);
+  });
+});
+
+describe("isAnalysisResultsReadyJobStatus", () => {
+  it("returns true when analysed results should be shown", () => {
+    expect(isAnalysisResultsReadyJobStatus("retrying")).toBe(true);
+    expect(isAnalysisResultsReadyJobStatus("partial_finish")).toBe(true);
+    expect(isAnalysisResultsReadyJobStatus("finished")).toBe(true);
+    expect(isAnalysisResultsReadyJobStatus("processing_analysis")).toBe(false);
   });
 });
 
@@ -106,7 +139,7 @@ describe("mapAnalysedNotamRow", () => {
         id: 10,
         category: 2,
         summary: "Runway closed overnight",
-        was_cached: true,
+        did_error: false,
         raw_notams: {
           id: 1,
           notam_id: "A1234/26",
@@ -125,7 +158,7 @@ describe("mapAnalysedNotamRow", () => {
       id: 10,
       category: 2,
       summary: "Runway closed overnight",
-      was_cached: true,
+      did_error: false,
       raw_notam: {
         id: 1,
         notam_id: "A1234/26",
@@ -141,6 +174,264 @@ describe("mapAnalysedNotamRow", () => {
       },
     });
   });
+
+  it("maps pending analysed notams without category or summary", () => {
+    expect(
+      mapAnalysedNotamRow({
+        id: 11,
+        category: null,
+        summary: null,
+        did_error: false,
+        raw_notams: {
+          id: 2,
+          notam_id: "B5678/26",
+          title: null,
+          q: null,
+          a: null,
+          b: null,
+          c: null,
+          d: null,
+          e: "Taxiway closed",
+          f: null,
+          g: null,
+        },
+      }),
+    ).toEqual({
+      id: 11,
+      category: null,
+      summary: null,
+      did_error: false,
+      raw_notam: {
+        id: 2,
+        notam_id: "B5678/26",
+        title: null,
+        q: null,
+        a: null,
+        b: null,
+        c: null,
+        d: null,
+        e: "Taxiway closed",
+        f: null,
+        g: null,
+      },
+    });
+  });
+});
+
+describe("isAnalysedNotamClassified", () => {
+  const rawNotam = {
+    id: 1,
+    notam_id: "A1",
+    title: null,
+    q: null,
+    a: null,
+    b: null,
+    c: null,
+    d: null,
+    e: null,
+    f: null,
+    g: null,
+  };
+
+  it("returns true when category and summary are present", () => {
+    expect(
+      isAnalysedNotamClassified({
+        id: 1,
+        category: 2,
+        summary: "Summary",
+        did_error: false,
+        raw_notam: rawNotam,
+      }),
+    ).toBe(true);
+  });
+
+  it("returns true when summary is empty but present", () => {
+    expect(
+      isAnalysedNotamClassified({
+        id: 1,
+        category: 2,
+        summary: "",
+        did_error: false,
+        raw_notam: rawNotam,
+      }),
+    ).toBe(true);
+  });
+
+  it("returns false when category or summary is missing", () => {
+    expect(
+      isAnalysedNotamClassified({
+        id: 2,
+        category: null,
+        summary: null,
+        did_error: false,
+        raw_notam: rawNotam,
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false when analysis failed after retries", () => {
+    expect(
+      isAnalysedNotamClassified({
+        id: 3,
+        category: 2,
+        summary: "Summary",
+        did_error: true,
+        raw_notam: rawNotam,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("isAnalysedNotamFailed", () => {
+  const rawNotam = {
+    id: 1,
+    notam_id: "A1",
+    title: null,
+    q: null,
+    a: null,
+    b: null,
+    c: null,
+    d: null,
+    e: null,
+    f: null,
+    g: null,
+  };
+
+  it("returns true only when did_error is set", () => {
+    expect(
+      isAnalysedNotamFailed({
+        id: 1,
+        category: null,
+        summary: null,
+        did_error: true,
+        raw_notam: rawNotam,
+      }),
+    ).toBe(true);
+
+    expect(
+      isAnalysedNotamFailed({
+        id: 2,
+        category: null,
+        summary: null,
+        did_error: false,
+        raw_notam: rawNotam,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("buildFlightAnalysedNotamsSnapshot", () => {
+  const rawNotam = (id: number, notamId: string): RawNotam => ({
+    id,
+    notam_id: notamId,
+    title: null,
+    q: null,
+    a: null,
+    b: null,
+    c: null,
+    d: null,
+    e: `Body ${id}`,
+    f: null,
+    g: null,
+  });
+
+  it("counts pending notams while retrying", () => {
+    const snapshot = buildFlightAnalysedNotamsSnapshot(
+      [
+        {
+          id: 1,
+          category: 1,
+          summary: "Done",
+          did_error: false,
+          raw_notam: rawNotam(1, "A1"),
+        },
+        {
+          id: 2,
+          category: null,
+          summary: null,
+          did_error: false,
+          raw_notam: rawNotam(2, "A2"),
+        },
+      ],
+      [rawNotam(1, "A1"), rawNotam(2, "A2")],
+      { includeUnclassifiedRaw: false },
+    );
+
+    expect(snapshot.pendingCount).toBe(1);
+    expect(snapshot.failedNotams).toEqual([]);
+    expect(snapshot.classifiedGroups).toEqual([
+      {
+        category: 1,
+        notams: [
+          {
+            id: 1,
+            category: 1,
+            summary: "Done",
+            did_error: false,
+            raw_notam: rawNotam(1, "A1"),
+          },
+        ],
+      },
+    ]);
+    expect(snapshot.unclassifiedRawNotams).toEqual([]);
+  });
+
+  it("separates failed notams from pending and classified", () => {
+    const snapshot = buildFlightAnalysedNotamsSnapshot(
+      [
+        {
+          id: 1,
+          category: 1,
+          summary: "Done",
+          did_error: false,
+          raw_notam: rawNotam(1, "A1"),
+        },
+        {
+          id: 2,
+          category: null,
+          summary: null,
+          did_error: true,
+          raw_notam: rawNotam(2, "A2"),
+        },
+        {
+          id: 3,
+          category: null,
+          summary: null,
+          did_error: false,
+          raw_notam: rawNotam(3, "A3"),
+        },
+      ],
+      [rawNotam(1, "A1"), rawNotam(2, "A2"), rawNotam(3, "A3")],
+      { includeUnclassifiedRaw: false },
+    );
+
+    expect(snapshot.pendingCount).toBe(1);
+    expect(snapshot.failedNotams).toHaveLength(1);
+    expect(snapshot.failedNotams[0]?.id).toBe(2);
+    expect(snapshot.classifiedGroups).toHaveLength(1);
+  });
+
+  it("returns unclassified raw notams for partial finish", () => {
+    const snapshot = buildFlightAnalysedNotamsSnapshot(
+      [
+        {
+          id: 1,
+          category: 1,
+          summary: "Done",
+          did_error: false,
+          raw_notam: rawNotam(1, "A1"),
+        },
+      ],
+      [rawNotam(1, "A1"), rawNotam(2, "A2"), rawNotam(3, "A3")],
+      { includeUnclassifiedRaw: true },
+    );
+
+    expect(snapshot.pendingCount).toBe(0);
+    expect(snapshot.unclassifiedRawNotams).toEqual([
+      rawNotam(2, "A2"),
+      rawNotam(3, "A3"),
+    ]);
+  });
 });
 
 describe("groupAnalysedNotamsByCategory", () => {
@@ -149,7 +440,7 @@ describe("groupAnalysedNotamsByCategory", () => {
       id,
       category,
       summary: `Summary ${id}`,
-      was_cached: false,
+      did_error: false,
       raw_notam: {
         id,
         notam_id: `N${id}`,

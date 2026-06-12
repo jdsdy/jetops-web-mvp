@@ -3,7 +3,17 @@ import { redirect } from "next/navigation";
 
 import { FlightExtractionDetailsSection } from "@/app/app/organisation/[organisationId]/flights/_components/flight-extraction-details";
 import { LogoutButton } from "@/components/logout-button";
-import { getFlightExtractionResult } from "@/lib/flights";
+import {
+  getAnalysisJobSummary,
+  getFlightAnalysedNotamsSnapshot,
+  getFlightExtractionResult,
+  getRawNotamsForAnalysis,
+  isAnalysisPartialFinishJobStatus,
+  isAnalysisResultsReadyJobStatus,
+  isExtractionReadyJobStatus,
+  type FlightAnalysedNotamsSnapshot,
+  type RawNotam,
+} from "@/lib/flights";
 import {
   getOrganisationAppPath,
   resolveOrganisationAppRouteAccess,
@@ -62,15 +72,52 @@ export default async function OrganisationFlightsPage({
     redirect(appHomePath);
   }
 
+  const analysisJob = await getAnalysisJobSummary(supabase, jobId);
+
+  if (
+    !analysisJob ||
+    analysisJob.flightPlanId !== extractionResult.flightPlanId
+  ) {
+    redirect(appHomePath);
+  }
+
+  let initialAnalysedSnapshot: FlightAnalysedNotamsSnapshot | null = null;
+
+  if (isAnalysisResultsReadyJobStatus(analysisJob.status)) {
+    initialAnalysedSnapshot = await getFlightAnalysedNotamsSnapshot(
+      supabase,
+      jobId,
+      analysisJob.flightPlanId,
+      {
+        includeUnclassifiedRaw: isAnalysisPartialFinishJobStatus(
+          analysisJob.status,
+        ),
+      },
+    );
+  }
+
+  let initialRawNotams: RawNotam[] = [];
+
+  if (isExtractionReadyJobStatus(analysisJob.status)) {
+    initialRawNotams = await getRawNotamsForAnalysis(
+      supabase,
+      jobId,
+      analysisJob.flightPlanId,
+    );
+  }
+
   return (
     <main>
       <h1>/app/organisation/{membership.organisations.id}/flights</h1>
       <FlightExtractionDetailsSection
         organisationId={membership.organisations.id}
         flightId={flightId}
-        flightPlanId={extractionResult.flightPlanId}
+        flightPlanId={analysisJob.flightPlanId}
         jobId={jobId}
         initialDetails={extractionResult.details}
+        initialJobStatus={analysisJob.status}
+        initialAnalysedSnapshot={initialAnalysedSnapshot}
+        initialRawNotams={initialRawNotams}
       />
       <Link href={appHomePath}>
         <button type="button">Back to app home</button>

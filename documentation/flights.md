@@ -189,9 +189,17 @@ Response: `200`
 
 ## Analysed NOTAMs
 
-When the external analysis completes, `analysis_jobs.status` becomes `finished` and rows are written to `analysed_notams` (linked to `raw_notams` via `notam_id`).
+During analysis the external service writes rows to `analysed_notams` (linked to `raw_notams` via `notam_id`). Job status drives what the flights page shows:
 
-The flights page listens for that status via Realtime, then loads analysed NOTAMs with a join to `raw_notams` and displays them grouped by `category`.
+| Status | Display |
+| --- | --- |
+| `retrying` | Classified NOTAMs grouped by category; count of NOTAMs still processing (`did_error = false` and missing `category` / `summary`) |
+| `partial_finish` | Classified NOTAMs, failed NOTAMs (`did_error = true`), plus remaining unclassified NOTAMs loaded from `raw_notams` |
+| `finished` | All NOTAMs classified and grouped by category |
+
+`analysed_notams.did_error` is set when the retry mechanism could not classify a NOTAM. Failed rows are shown separately with their raw NOTAM text.
+
+The flights page polls job status while `retrying` so partial results refresh until the job reaches `finished` or `partial_finish`.
 
 | Table / resource | Policy |
 | --- | --- |
@@ -209,14 +217,15 @@ The flights page listens for that status via Realtime, then loads analysed NOTAM
 ### `/app/organisation/{organisationId}/flights?id={flight_id}&jobId={job_id}`
 
 - Same slug membership guard
-- Polls `GET /api/organisations/{organisationId}/flights/{flightId}?jobId={job_id}` every 3 seconds while the job status is `processing_extraction` or `processing_analysis`
-- Stops polling when the status is `awaiting_confirmation`, `finished`, or another terminal state
+- Server-renders extraction fields, raw NOTAMs, and analysed NOTAMs when the linked job is already past extraction or analysis so reopening a finished flight does not depend on client polling
+- Polls `GET /api/organisations/{organisationId}/flights/{flightId}?jobId={job_id}` every 3 seconds while the job status is `processing_extraction`, `processing_analysis`, or `retrying`
+- Stops polling when the status is `awaiting_confirmation`, `finished`, `partial_finish`, or another terminal state
 - Restarts polling after **Analyse** is triggered so `processing_analysis` updates are received
 - Displays the analysis job status from the polling endpoint
 - Loads extracted fields from the database when the job is already `awaiting_confirmation` on first check, or when status changes from `processing_extraction` to `awaiting_confirmation`
 - At `awaiting_confirmation`, extracted flight plan fields are editable; members can save corrections via `PATCH /api/organisations/{organisationId}/flights/{flightId}` before triggering analysis
 - **Analyse** calls `POST /api/organisations/{organisationId}/flights/{flightId}/analysis` to start NOTAM analysis; a `response_begun: true` response shows an in-progress message until the job finishes
-- When `analysis_jobs.status` becomes `finished`, analysed NOTAMs are loaded from `analysed_notams` (joined to `raw_notams`) and shown grouped by category
+- When `analysis_jobs.status` is `retrying`, `partial_finish`, or `finished`, analysed NOTAMs are loaded from `analysed_notams` (joined to `raw_notams`) and shown grouped by category; `retrying` also shows how many NOTAMs are still processing; `partial_finish` also shows unclassified NOTAMs from `raw_notams`
 - Also shows extraction for later statuses (`processing_analysis`, `complete`) using the server-rendered initial values
 - Loads NOTAMs from `raw_notams` using both `analysis_job_id` and `flight_plan_id` when extraction is shown
 - Displays the NOTAM count with an expand/collapse list; multiline NOTAM fields render `{\n}` placeholders as line breaks

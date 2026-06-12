@@ -86,15 +86,22 @@ export type RawNotam = {
 
 export type AnalysedNotam = {
   id: number;
-  category: number;
-  summary: string;
-  was_cached: boolean | null;
+  category: number | null;
+  summary: string | null;
+  did_error: boolean;
   raw_notam: RawNotam;
 };
 
 export type AnalysedNotamCategoryGroup = {
   category: number;
   notams: AnalysedNotam[];
+};
+
+export type FlightAnalysedNotamsSnapshot = {
+  classifiedGroups: AnalysedNotamCategoryGroup[];
+  pendingCount: number;
+  failedNotams: AnalysedNotam[];
+  unclassifiedRawNotams: RawNotam[];
 };
 
 export const EXTRACTION_READY_JOB_STATUSES = [
@@ -105,12 +112,39 @@ export const EXTRACTION_READY_JOB_STATUSES = [
 ] as const;
 
 export const ANALYSIS_FINISHED_JOB_STATUS = "finished";
+export const ANALYSIS_RETRYING_JOB_STATUS = "retrying";
+export const ANALYSIS_PARTIAL_FINISH_JOB_STATUS = "partial_finish";
 
 /**
  * Returns whether NOTAM analysis has finished for the job.
  */
 export function isAnalysisFinishedJobStatus(status: string): boolean {
   return status === ANALYSIS_FINISHED_JOB_STATUS;
+}
+
+/**
+ * Returns whether analysis is retrying failed classification points.
+ */
+export function isAnalysisRetryingJobStatus(status: string): boolean {
+  return status === ANALYSIS_RETRYING_JOB_STATUS;
+}
+
+/**
+ * Returns whether analysis ended with some unclassified NOTAMs.
+ */
+export function isAnalysisPartialFinishJobStatus(status: string): boolean {
+  return status === ANALYSIS_PARTIAL_FINISH_JOB_STATUS;
+}
+
+/**
+ * Returns whether analysed NOTAM results should be loaded for display.
+ */
+export function isAnalysisResultsReadyJobStatus(status: string): boolean {
+  return (
+    isAnalysisFinishedJobStatus(status) ||
+    isAnalysisRetryingJobStatus(status) ||
+    isAnalysisPartialFinishJobStatus(status)
+  );
 }
 
 /**
@@ -367,6 +401,7 @@ export const ANALYSIS_IN_PROGRESS_JOB_STATUS = "processing_analysis";
 export const ANALYSIS_JOB_POLLING_STATUSES = [
   "processing_extraction",
   "processing_analysis",
+  "retrying",
 ] as const;
 
 /**
@@ -545,9 +580,9 @@ type RawNotamRow = {
 
 type AnalysedNotamRow = {
   id: number;
-  category: number;
-  summary: string;
-  was_cached: boolean | null;
+  category: number | null;
+  summary: string | null;
+  did_error: boolean;
   raw_notams: RawNotamRow | RawNotamRow[] | null;
 };
 
@@ -555,7 +590,7 @@ const ANALYSED_NOTAM_SELECT = `
   id,
   category,
   summary,
-  was_cached,
+  did_error,
   raw_notams (
     id,
     notam_id,
@@ -864,6 +899,59 @@ export async function getRawNotamsForAnalysis(
 }
 
 /**
+ * Returns whether analysis failed for a NOTAM after retries.
+ */
+export function isAnalysedNotamFailed(notam: AnalysedNotam): boolean {
+  return notam.did_error;
+}
+
+/**
+ * Returns whether an analysed NOTAM has a completed category and summary.
+ */
+export function isAnalysedNotamClassified(notam: AnalysedNotam): boolean {
+  return (
+    !notam.did_error && notam.category !== null && notam.summary !== null
+  );
+}
+
+/**
+ * Returns whether a NOTAM is still being analysed.
+ */
+export function isAnalysedNotamPending(notam: AnalysedNotam): boolean {
+  return !notam.did_error && !isAnalysedNotamClassified(notam);
+}
+
+export type AnalysisJobSummary = {
+  id: string;
+  status: string;
+  flightPlanId: string;
+};
+
+/**
+ * Loads the analysis job status and linked flight plan id.
+ */
+export async function getAnalysisJobSummary(
+  supabase: SupabaseClient,
+  jobId: string,
+): Promise<AnalysisJobSummary | null> {
+  const { data, error } = await supabase
+    .from("analysis_jobs")
+    .select("id, status, flight_plan_id")
+    .eq("id", jobId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return {
+    id: data.id,
+    status: data.status,
+    flightPlanId: data.flight_plan_id,
+  };
+}
+
+/**
  * Maps a joined analysed NOTAM row to a display model.
  */
 export function mapAnalysedNotamRow(row: AnalysedNotamRow): AnalysedNotam | null {
@@ -877,7 +965,7 @@ export function mapAnalysedNotamRow(row: AnalysedNotamRow): AnalysedNotam | null
     id: row.id,
     category: row.category,
     summary: row.summary,
-    was_cached: row.was_cached,
+    did_error: row.did_error,
     raw_notam: mapRawNotamRow(rawNotam),
   };
 }
@@ -891,6 +979,10 @@ export function groupAnalysedNotamsByCategory(
   const groups = new Map<number, AnalysedNotam[]>();
 
   for (const notam of notams) {
+    if (notam.category === null) {
+      continue;
+    }
+
     const existing = groups.get(notam.category) ?? [];
     existing.push(notam);
     groups.set(notam.category, existing);
@@ -905,6 +997,95 @@ export function groupAnalysedNotamsByCategory(
 }
 
 /**
+ * Builds a display snapshot from analysed and raw NOTAM rows.
+ */
+export function buildFlightAnalysedNotamsSnapshot(
+  analysedNotams: AnalysedNotam[],
+  rawNotams: RawNotam[],
+  options: { includeUnclassifiedRaw: boolean },
+): FlightAnalysedNotamsSnapshot {
+  const classified: AnalysedNotam[] = [];
+  const failedNotams: AnalysedNotam[] = [];
+  let pendingCount = 0;
+
+  for (const notam of analysedNotams) {
+    if (isAnalysedNotamFailed(notam)) {
+      failedNotams.push(notam);
+    } else if (isAnalysedNotamClassified(notam)) {
+      classified.push(notam);
+    } else if (isAnalysedNotamPending(notam)) {
+      pendingCount += 1;
+    }
+  }
+
+  const handledRawNotamIds = new Set(
+    [...classified, ...failedNotams].map((notam) => notam.raw_notam.id),
+  );
+
+  const unclassifiedRawNotams = options.includeUnclassifiedRaw
+    ? rawNotams.filter((notam) => !handledRawNotamIds.has(notam.id))
+    : [];
+
+  return {
+    classifiedGroups: groupAnalysedNotamsByCategory(classified),
+    pendingCount,
+    failedNotams,
+    unclassifiedRawNotams,
+  };
+}
+
+/**
+ * Loads analysed NOTAMs with optional unclassified raw NOTAMs for display.
+ */
+export async function getFlightAnalysedNotamsSnapshot(
+  supabase: SupabaseClient,
+  analysisJobId: string,
+  flightPlanId: string,
+  options: { includeUnclassifiedRaw: boolean },
+): Promise<FlightAnalysedNotamsSnapshot> {
+  if (!flightPlanId) {
+    return {
+      classifiedGroups: [],
+      pendingCount: 0,
+      failedNotams: [],
+      unclassifiedRawNotams: [],
+    };
+  }
+
+  let query = supabase
+    .from("analysed_notams")
+    .select(ANALYSED_NOTAM_SELECT)
+    .eq("anaysis_job_id", analysisJobId);
+
+  if (flightPlanId) {
+    query = query.eq("flight_plan_id", flightPlanId);
+  }
+
+  const { data, error } = await query
+    .order("category", { ascending: true })
+    .order("id", { ascending: true });
+
+  if (error || !data) {
+    return {
+      classifiedGroups: [],
+      pendingCount: 0,
+      failedNotams: [],
+      unclassifiedRawNotams: [],
+    };
+  }
+
+  const analysedNotams = (data as AnalysedNotamRow[])
+    .map(mapAnalysedNotamRow)
+    .filter((notam): notam is AnalysedNotam => notam !== null);
+
+  const rawNotams = options.includeUnclassifiedRaw
+    ? await getRawNotamsForAnalysis(supabase, analysisJobId, flightPlanId)
+    : [];
+
+  return buildFlightAnalysedNotamsSnapshot(analysedNotams, rawNotams, options);
+}
+
+/**
  * Loads analysed NOTAMs with raw NOTAM content for an analysis job and flight plan.
  */
 export async function getAnalysedNotamsForAnalysis(
@@ -912,25 +1093,12 @@ export async function getAnalysedNotamsForAnalysis(
   analysisJobId: string,
   flightPlanId: string,
 ): Promise<AnalysedNotamCategoryGroup[]> {
-  if (!flightPlanId) {
-    return [];
-  }
+  const snapshot = await getFlightAnalysedNotamsSnapshot(
+    supabase,
+    analysisJobId,
+    flightPlanId,
+    { includeUnclassifiedRaw: false },
+  );
 
-  const { data, error } = await supabase
-    .from("analysed_notams")
-    .select(ANALYSED_NOTAM_SELECT)
-    .eq("anaysis_job_id", analysisJobId)
-    .eq("flight_plan_id", flightPlanId)
-    .order("category", { ascending: true })
-    .order("id", { ascending: true });
-
-  if (error || !data) {
-    return [];
-  }
-
-  const notams = (data as AnalysedNotamRow[])
-    .map(mapAnalysedNotamRow)
-    .filter((notam): notam is AnalysedNotam => notam !== null);
-
-  return groupAnalysedNotamsByCategory(notams);
+  return snapshot.classifiedGroups;
 }
