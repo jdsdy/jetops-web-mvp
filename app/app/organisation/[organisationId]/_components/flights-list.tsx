@@ -1,5 +1,8 @@
 import Link from "next/link";
 
+import { PortalTable } from "@/components/portal-table";
+import { portalLinkClassName, portalTdClassName } from "@/components/portal-styles";
+import { formatPortalDate } from "@/lib/format";
 import type { OrganisationFlightListItem } from "@/lib/flights";
 
 type FlightsListProps = {
@@ -8,13 +11,20 @@ type FlightsListProps = {
 };
 
 /**
- * Formats a flight row label for the organisation flights list.
+ * Formats a flight route label for the organisation flights list.
  */
-function formatFlightLabel(flight: OrganisationFlightListItem): string {
+function formatRoute(flight: OrganisationFlightListItem): string {
   if (flight.departure_icao && flight.arrival_icao) {
     return `${flight.departure_icao} → ${flight.arrival_icao}`;
   }
 
+  return "—";
+}
+
+/**
+ * Formats aircraft details for a flight row.
+ */
+function formatAircraft(flight: OrganisationFlightListItem): string {
   if (flight.tail_number && flight.model) {
     return `${flight.tail_number} — ${flight.model}`;
   }
@@ -23,7 +33,7 @@ function formatFlightLabel(flight: OrganisationFlightListItem): string {
     return flight.tail_number;
   }
 
-  return `Flight ${flight.id.slice(0, 8)}`;
+  return "—";
 }
 
 /**
@@ -41,31 +51,43 @@ function buildFlightPageHref(
 }
 
 /**
- * Displays organisation flights with links to the flight status page.
+ * Displays organisation flights in a table with links to the analysis page.
  */
 export function FlightsList({ organisationId, flights }: FlightsListProps) {
+  if (flights.length === 0) {
+    return (
+      <p className="text-sm text-aviation-slate">
+        No flights yet. Add a flight to upload a flight plan.
+      </p>
+    );
+  }
+
   return (
-    <section>
-      <h2>Flights</h2>
+    <PortalTable columns={["Route", "Aircraft", "Status", "Created", "Actions"]}>
+      {flights.map((flight) => {
+        const href = buildFlightPageHref(organisationId, flight);
+        const status = flight.job_status ?? flight.status ?? "Unknown";
 
-      {flights.length === 0 ? (
-        <p>No flights yet.</p>
-      ) : (
-        <ul>
-          {flights.map((flight) => {
-            const label = formatFlightLabel(flight);
-            const status = flight.job_status ?? flight.status ?? "Unknown";
-            const href = buildFlightPageHref(organisationId, flight);
-            const rowText = `${label} — ${status}`;
-
-            return (
-              <li key={flight.id}>
-                {href ? <Link href={href}>{rowText}</Link> : <span>{rowText}</span>}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
+        return (
+          <tr key={flight.id} className="hover:bg-neutral-50">
+            <td className={portalTdClassName}>{formatRoute(flight)}</td>
+            <td className={portalTdClassName}>{formatAircraft(flight)}</td>
+            <td className={portalTdClassName}>{status}</td>
+            <td className={portalTdClassName}>
+              {formatPortalDate(flight.created_at)}
+            </td>
+            <td className={portalTdClassName}>
+              {href ? (
+                <Link href={href} className={portalLinkClassName}>
+                  View analysis
+                </Link>
+              ) : (
+                <span className="text-aviation-slate">—</span>
+              )}
+            </td>
+          </tr>
+        );
+      })}
+    </PortalTable>
   );
 }

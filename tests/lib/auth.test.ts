@@ -75,8 +75,8 @@ describe("isOnboardingComplete", () => {
 });
 
 describe("getPostOnboardingPath", () => {
-  it("redirects organisation accounts to the organisation portal callback", () => {
-    expect(getPostOnboardingPath("organisation")).toBe("/portal/callback");
+  it("redirects organisation accounts to the organisation callback", () => {
+    expect(getPostOnboardingPath("organisation")).toBe("/app/callback");
   });
 
   it("redirects personal accounts to the personal app", () => {
@@ -99,14 +99,14 @@ describe("getRedirectForProfile", () => {
     ).toBe("/onboarding");
   });
 
-  it("sends completed organisation profiles to the organisation portal callback", () => {
+  it("sends completed organisation profiles to the organisation callback", () => {
     expect(
       getRedirectForProfile({
         f_name: "Jane",
         l_initial: "S",
         account_type: "organisation",
       }),
-    ).toBe("/portal/callback");
+    ).toBe("/app/callback");
   });
 
   it("sends completed personal profiles to the personal app", () => {
@@ -121,8 +121,8 @@ describe("getRedirectForProfile", () => {
 });
 
 describe("isAccountTypeProtectedRoute", () => {
-  it("includes organisation app and portal routes", () => {
-    expect(isAccountTypeProtectedRoute("/portal/organisation")).toBe(true);
+  it("includes organisation app routes", () => {
+    expect(isAccountTypeProtectedRoute("/app/callback")).toBe(true);
     expect(isAccountTypeProtectedRoute("/app/organisation")).toBe(true);
   });
 
@@ -143,7 +143,7 @@ describe("isAccountTypeProtectedRoute", () => {
 
 describe("canAccessRoute", () => {
   it("allows organisation users on organisation routes", () => {
-    expect(canAccessRoute("organisation", "/portal/organisation")).toBe(true);
+    expect(canAccessRoute("organisation", "/app/callback")).toBe(true);
     expect(canAccessRoute("organisation", "/app/organisation")).toBe(true);
   });
 
@@ -156,7 +156,7 @@ describe("canAccessRoute", () => {
   });
 
   it("denies personal users on organisation routes", () => {
-    expect(canAccessRoute("personal", "/portal/organisation")).toBe(false);
+    expect(canAccessRoute("personal", "/app/callback")).toBe(false);
     expect(canAccessRoute("personal", "/app/organisation")).toBe(false);
   });
 });
@@ -186,14 +186,14 @@ describe("getRouteGuardRedirect", () => {
         { f_name: "Jane", l_initial: "S", account_type: "organisation" },
         "/app/personal",
       ),
-    ).toBe("/portal/callback");
+    ).toBe("/app/callback");
   });
 
   it("redirects personal users away from organisation routes", () => {
     expect(
       getRouteGuardRedirect(
         { f_name: "Jane", l_initial: "S", account_type: "personal" },
-        "/portal/organisation",
+        "/app/organisation",
       ),
     ).toBe("/app/personal");
   });

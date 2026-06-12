@@ -5,14 +5,12 @@
 | `/` | No | Landing page; **Sign in** links to `/auth` |
 | `/auth` | No | Login and signup form |
 | `/onboarding` | Yes | Name collection step |
-| `/portal/callback` | Yes (organisation) | Resolves membership; signs out disabled users |
-| `/portal/organisation` | Yes (organisation) | Redirects to `/portal/callback` |
-| `/portal/organisation/setup` | Yes (organisation) | Create organisation form |
-| `/portal/organisation/{organisationId}` | Yes (organisation) | Organisation portal; admins get user management, others see read-only members |
+| `/app/callback` | Yes (organisation) | Resolves membership; signs out disabled users |
+| `/app/organisation/setup` | Yes (organisation) | Create organisation form |
 | `/auth/accept-invite` | No (until token verified) | Invite acceptance and password setup |
 | `/app/personal` | Yes (personal) | Personal app shell |
 | `/app/organisation` | Yes (organisation) | Redirects to `/app/organisation/{organisationId}` for active members |
-| `/app/organisation/{organisationId}` | Yes (organisation) | Organisation app home; create flight form |
+| `/app/organisation/{organisationId}` | Yes (organisation) | Organisation CRM home: members, fleet, flights |
 | `/app/organisation/{organisationId}/flights` | Yes (organisation) | Flight analysis status page (`?id=` and `?jobId=` required) |
 
 ## Account-type route protection
@@ -21,21 +19,23 @@ After login, route access is enforced from `profile.account_type`:
 
 | Account type | Allowed routes | Denied routes |
 | --- | --- | --- |
-| `organisation` | `/portal/callback`, `/portal/organisation`, `/app/organisation` | `/app/personal` |
-| `personal` | `/app/personal` | `/portal/organisation`, `/app/organisation` |
+| `organisation` | `/app/callback`, `/app/organisation` | `/app/personal` |
+| `personal` | `/app/personal` | `/app/callback`, `/app/organisation` |
 
-Users who attempt a denied route are redirected to their account home (`/portal/callback` or `/app/personal`). Users with incomplete onboarding are redirected to `/onboarding` when they hit an account-type route.
+Users who attempt a denied route are redirected to their account home (`/app/callback` or `/app/personal`). Users with incomplete onboarding are redirected to `/onboarding` when they hit an account-type route.
 
 Enforcement runs in `proxy.ts` via `lib/supabase/middleware.ts`. Logic is covered by `tests/lib/auth.test.ts`.
 
-## Organisation portal navigation
+## Organisation app navigation
 
-See [organisation-portal.md](./organisation-portal.md) for membership resolution and setup.
+See [organisation-app.md](./organisation-app.md) for membership resolution, setup, and the unified organisation home.
 
-`/portal/organisation/{organisationId}` includes:
+`/app/organisation/{organisationId}` includes:
 
 - Organisation name
-- **Go to app/organisation** → `/app/organisation`
+- User management (admins) or read-only members list (non-admins)
+- Fleet section (all members view; admins manage)
+- Flights list and create-flight form (all active members)
 - **Logout**
 
 ## Testing

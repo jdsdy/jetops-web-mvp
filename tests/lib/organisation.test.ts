@@ -5,7 +5,7 @@ import {
   assertMemberEnableAllowed,
   assertOwnershipTransferAllowed,
   formatMemberDisplayName,
-  getOrganisationPortalRedirect,
+  getOrganisationRedirect,
   isInvitationAcceptable,
   isOrgAdminMembership,
   normaliseOrganisationId,
@@ -185,17 +185,17 @@ describe("isInvitationAcceptable", () => {
   });
 });
 
-describe("getOrganisationPortalRedirect", () => {
+describe("getOrganisationRedirect", () => {
   it("sends users without membership to setup", () => {
-    expect(getOrganisationPortalRedirect(null)).toBe("/portal/organisation/setup");
+    expect(getOrganisationRedirect(null)).toBe("/app/organisation/setup");
   });
 
-  it("sends users with membership to their organisation portal route", () => {
+  it("sends users with membership to their organisation app route", () => {
     expect(
-      getOrganisationPortalRedirect({
+      getOrganisationRedirect({
         organisations: { id: "org-1", name: "Jet Operations", slug: "jet-operations" },
       }),
-    ).toBe("/portal/organisation/org-1");
+    ).toBe("/app/organisation/org-1");
   });
 });
 
@@ -515,7 +515,7 @@ describe("resolveOrganisationCallbackRedirect", () => {
   it("sends users without membership to setup", () => {
     expect(resolveOrganisationCallbackRedirect(null)).toEqual({
       outcome: "redirect",
-      path: "/portal/organisation/setup",
+      path: "/app/organisation/setup",
     });
   });
 
@@ -528,10 +528,10 @@ describe("resolveOrganisationCallbackRedirect", () => {
     ).toEqual({ outcome: "disabled" });
   });
 
-  it("redirects active members to their organisation portal route", () => {
+  it("redirects active members to their organisation app route", () => {
     expect(resolveOrganisationCallbackRedirect(activeMembership)).toEqual({
       outcome: "redirect",
-      path: "/portal/organisation/org-1",
+      path: "/app/organisation/org-1",
     });
   });
 
@@ -543,7 +543,7 @@ describe("resolveOrganisationCallbackRedirect", () => {
       }),
     ).toEqual({
       outcome: "redirect",
-      path: "/portal/organisation/setup",
+      path: "/app/organisation/setup",
     });
   });
 });

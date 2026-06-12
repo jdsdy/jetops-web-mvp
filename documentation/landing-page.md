@@ -158,4 +158,4 @@ Use `next/image` for logos. Mark the header logo `priority`.
 
 ## Out of scope (other passes)
 
-The landing conventions above do not yet apply to `/auth`, onboarding, portal, or app routes. Reuse tokens and typography from `globals.css` when styling those surfaces in later passes.
+The landing conventions above do not yet apply to `/auth`, onboarding, or app routes. Reuse tokens and typography from `globals.css` when styling those surfaces in later passes.

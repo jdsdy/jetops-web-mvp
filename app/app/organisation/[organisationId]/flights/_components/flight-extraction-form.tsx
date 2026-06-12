@@ -2,6 +2,15 @@
 
 import { useEffect, useState } from "react";
 
+import { PortalAlerts } from "@/components/portal-alerts";
+import { PortalButton } from "@/components/portal-button";
+import {
+  portalCardClassName,
+  portalFieldClassName,
+  portalFieldGroupClassName,
+  portalLabelClassName,
+} from "@/components/portal-styles";
+import { SectionHeader } from "@/components/section-header";
 import {
   formatFlightExtractionDateTimeForDisplay,
   formatFlightExtractionDateTimeForInput,
@@ -40,12 +49,12 @@ const EXTRACTION_FIELDS: {
   { key: "arr_rwy", label: "Arrival runway", inputType: "text" },
   {
     key: "planned_dept_time",
-    label: "Planned departure time (UTC)",
+    label: "Planned departure (UTC)",
     inputType: "datetime-local",
   },
   {
     key: "planned_arr_time",
-    label: "Planned arrival time (UTC)",
+    label: "Planned arrival (UTC)",
     inputType: "datetime-local",
   },
   { key: "alt_icao", label: "Alternate ICAO", inputType: "text" },
@@ -62,7 +71,7 @@ function formatExtractedValue(
     return formatFlightExtractionDateTimeForDisplay(value);
   }
 
-  return value?.trim() ? value : "Not extracted yet";
+  return value?.trim() ? value : "—";
 }
 
 /**
@@ -106,6 +115,10 @@ export function FlightExtractionForm({
   }, [savedDetails]);
 
   const hasUnsavedChanges = hasFlightExtractionChanges(savedDetails, draftDetails);
+  const routeLabel =
+    savedDetails.departure_icao && savedDetails.arrival_icao
+      ? `${savedDetails.departure_icao} → ${savedDetails.arrival_icao}`
+      : null;
 
   /**
    * Updates a single draft extraction field.
@@ -202,21 +215,61 @@ export function FlightExtractionForm({
   }
 
   return (
-    <section>
-      <h2>Extracted flight plan</h2>
+    <div className={portalCardClassName}>
+      <SectionHeader
+        title="Flight details"
+        description={
+          editable
+            ? "Review extracted values and confirm before starting NOTAM analysis."
+            : routeLabel
+              ? `${routeLabel} — extracted flight plan details.`
+              : "Extracted flight plan details."
+        }
+        action={
+          editable ? (
+            <div className="flex flex-wrap gap-2">
+              <PortalButton
+                variant="secondary"
+                disabled={savePending || !hasUnsavedChanges}
+                onClick={() => {
+                  void handleSave();
+                }}
+              >
+                {savePending ? "Saving..." : "Save changes"}
+              </PortalButton>
+              <PortalButton
+                disabled={hasUnsavedChanges || analysePending || !flightPlanId}
+                onClick={() => {
+                  void handleAnalyse();
+                }}
+              >
+                {analysePending ? "Starting..." : "Confirm & analyse"}
+              </PortalButton>
+            </div>
+          ) : null
+        }
+      />
 
-      {saveError ? <p role="alert">{saveError}</p> : null}
+      <PortalAlerts error={saveError ?? analyseError} />
 
       {editable ? (
         <form
+          className="grid gap-4 sm:grid-cols-2"
           onSubmit={(event) => {
             event.preventDefault();
             void handleSave();
           }}
         >
           {EXTRACTION_FIELDS.map(({ key, label, inputType }) => (
-            <div key={key}>
-              <label htmlFor={key}>{label}</label>
+            <div
+              key={key}
+              className={`${portalFieldGroupClassName} ${
+                key === "route" ? "sm:col-span-2" : ""
+              }`}
+            >
+              <label htmlFor={key} className={portalLabelClassName}>
+                {label}
+              </label>
               <input
                 id={key}
                 name={key}
@@ -225,37 +278,28 @@ export function FlightExtractionForm({
                 onChange={(event) =>
                   handleFieldChange(key, inputType, event.target.value)
                 }
+                className={portalFieldClassName}
               />
             </div>
           ))}
-
-          <div>
-            <button type="submit" disabled={savePending || !hasUnsavedChanges}>
-              Save changes
-            </button>
-            <button
-              type="button"
-              disabled={hasUnsavedChanges || analysePending || !flightPlanId}
-              onClick={() => {
-                void handleAnalyse();
-              }}
-            >
-              Analyse
-            </button>
-          </div>
         </form>
       ) : (
-        <dl>
+        <dl className="grid gap-4 sm:grid-cols-2">
           {EXTRACTION_FIELDS.map(({ key, label, inputType }) => (
-            <div key={key}>
-              <dt>{label}</dt>
-              <dd>{formatExtractedValue(savedDetails[key], inputType)}</dd>
+            <div
+              key={key}
+              className={key === "route" ? "sm:col-span-2" : undefined}
+            >
+              <dt className="text-xs font-semibold uppercase tracking-wide text-aviation-slate">
+                {label}
+              </dt>
+              <dd className="mt-1 text-sm text-neutral-900">
+                {formatExtractedValue(savedDetails[key], inputType)}
+              </dd>
             </div>
           ))}
         </dl>
       )}
-
-      {analyseError ? <p role="alert">{analyseError}</p> : null}
-    </section>
+    </div>
   );
 }

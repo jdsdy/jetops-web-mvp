@@ -1,10 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { AnalysisProgressPanel } from "@/app/app/organisation/[organisationId]/flights/_components/analysis-progress-panel";
+import { AnalysisStatusBadge } from "@/app/app/organisation/[organisationId]/flights/_components/analysis-status-badge";
 import { AnalysedNotamsList } from "@/app/app/organisation/[organisationId]/flights/_components/analysed-notams-list";
 import { FlightExtractionForm } from "@/app/app/organisation/[organisationId]/flights/_components/flight-extraction-form";
-import { RawNotamsList } from "@/app/app/organisation/[organisationId]/flights/_components/raw-notams-list";
+import { portalLinkClassName } from "@/components/portal-styles";
 import {
   getFlightAnalysedNotamsSnapshot,
   getFlightExtractionResult,
@@ -36,6 +39,7 @@ type FlightExtractionDetailsProps = {
   initialJobStatus: string;
   initialAnalysedSnapshot: FlightAnalysedNotamsSnapshot | null;
   initialRawNotams: RawNotam[];
+  appHomePath: string;
 };
 
 type FlightJobStatusResponse = {
@@ -83,9 +87,13 @@ export function FlightExtractionDetailsSection({
   initialJobStatus,
   initialAnalysedSnapshot,
   initialRawNotams,
+  appHomePath,
 }: FlightExtractionDetailsProps) {
   const extractionReadyInitially = isExtractionReadyJobStatus(initialJobStatus);
   const resultsReadyInitially = isAnalysisResultsReadyJobStatus(initialJobStatus);
+  const analysisActiveInitially =
+    isAnalysisInProgressJobStatus(initialJobStatus) ||
+    isAnalysisRetryingJobStatus(initialJobStatus);
 
   const [jobStatus, setJobStatus] = useState<string>(initialJobStatus);
   const [savedDetails, setSavedDetails] = useState(initialDetails);
@@ -106,11 +114,14 @@ export function FlightExtractionDetailsSection({
   const [showExtraction, setShowExtraction] = useState(extractionReadyInitially);
   const [showAnalysedNotams, setShowAnalysedNotams] =
     useState(resultsReadyInitially);
-  const [analysisBegun, setAnalysisBegun] = useState(
-    isAnalysisInProgressJobStatus(initialJobStatus) ||
-      isAnalysisRetryingJobStatus(initialJobStatus),
-  );
+  const [analysisBegun, setAnalysisBegun] = useState(analysisActiveInitially);
   const [pollingTrigger, setPollingTrigger] = useState(0);
+  const [extractionStartedAt, setExtractionStartedAt] = useState<number | null>(
+    initialJobStatus === "processing_extraction" ? Date.now() : null,
+  );
+  const [analysisStartedAt, setAnalysisStartedAt] = useState<number | null>(
+    analysisActiveInitially ? Date.now() : null,
+  );
   const extractionLoadedRef = useRef(extractionReadyInitially);
   const analysedLoadedRef = useRef(
     resultsReadyInitially && !isAnalysisRetryingJobStatus(initialJobStatus),
@@ -167,6 +178,18 @@ export function FlightExtractionDetailsSection({
     (nextStatus: string, previousStatus: string | null) => {
       setJobStatus(nextStatus);
 
+      if (nextStatus === "processing_extraction" && !extractionStartedAt) {
+        setExtractionStartedAt(Date.now());
+      }
+
+      if (
+        (isAnalysisInProgressJobStatus(nextStatus) ||
+          isAnalysisRetryingJobStatus(nextStatus)) &&
+        !analysisStartedAt
+      ) {
+        setAnalysisStartedAt(Date.now());
+      }
+
       if (
         isExtractionReadyJobStatus(nextStatus) &&
         !extractionLoadedRef.current
@@ -194,6 +217,8 @@ export function FlightExtractionDetailsSection({
       }
     },
     [
+      analysisStartedAt,
+      extractionStartedAt,
       flightPlanId,
       initialFlightPlanId,
       loadAnalysedNotams,
@@ -298,43 +323,60 @@ export function FlightExtractionDetailsSection({
 
   const editable = isFlightExtractionEditableJobStatus(jobStatus);
 
+  const showExtractionProgress = jobStatus === "processing_extraction";
+
   const showAnalysisInProgress =
     !showAnalysedNotams &&
     (analysisBegun ||
       isAnalysisInProgressJobStatus(jobStatus) ||
       isAnalysisRetryingJobStatus(jobStatus));
 
+  const classifiedCount = analysedNotamGroups.reduce(
+    (count, group) => count + group.notams.length,
+    0,
+  );
+  const totalNotams =
+    notams.length ||
+    classifiedCount + pendingAnalysedNotamCount + failedNotams.length;
+
   return (
-    <>
-      <section>
-        <h2>Flight analysis</h2>
-        <p>Status: {jobStatus}</p>
-      </section>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Link href={appHomePath} className={portalLinkClassName}>
+          ← Back to flights
+        </Link>
+        <AnalysisStatusBadge status={jobStatus} />
+      </div>
+
+      {showExtractionProgress ? (
+        <AnalysisProgressPanel phase="extraction" startedAt={extractionStartedAt} />
+      ) : null}
 
       {showExtraction ? (
-        <>
-          <FlightExtractionForm
-            organisationId={organisationId}
-            flightId={flightId}
-            flightPlanId={flightPlanId}
-            jobId={jobId}
-            savedDetails={savedDetails}
-            editable={editable}
-            onSaved={setSavedDetails}
-            onAnalysisBegun={() => {
-              setAnalysisBegun(true);
-              setPollingTrigger((count) => count + 1);
-            }}
-          />
-          <RawNotamsList notams={notams} />
-        </>
+        <FlightExtractionForm
+          organisationId={organisationId}
+          flightId={flightId}
+          flightPlanId={flightPlanId}
+          jobId={jobId}
+          savedDetails={savedDetails}
+          editable={editable}
+          onSaved={setSavedDetails}
+          onAnalysisBegun={() => {
+            setAnalysisBegun(true);
+            setAnalysisStartedAt(Date.now());
+            setPollingTrigger((count) => count + 1);
+          }}
+        />
       ) : null}
 
       {showAnalysisInProgress ? (
-        <section>
-          <h2>NOTAM analysis</h2>
-          <p>Analysis in progress. Results will appear here when complete.</p>
-        </section>
+        <AnalysisProgressPanel
+          phase="analysis"
+          startedAt={analysisStartedAt}
+          totalNotams={totalNotams}
+          classifiedCount={classifiedCount}
+          pendingCount={pendingAnalysedNotamCount}
+        />
       ) : null}
 
       {showAnalysedNotams ? (
@@ -345,6 +387,6 @@ export function FlightExtractionDetailsSection({
           unclassifiedNotams={unclassifiedNotams}
         />
       ) : null}
-    </>
+    </div>
   );
 }

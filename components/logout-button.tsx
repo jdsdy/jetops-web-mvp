@@ -8,7 +8,12 @@ import { signOut } from "@/app/actions/auth";
 export function LogoutButton() {
   return (
     <form action={signOut}>
-      <button type="submit">Logout</button>
+      <button
+        type="submit"
+        className="text-sm font-medium text-aviation-slate transition-colors hover:text-aviation-navy"
+      >
+        Sign out
+      </button>
     </form>
   );
 }

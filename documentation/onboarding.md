@@ -17,7 +17,7 @@ After the user clicks **Continue**, the app updates the profile and redirects:
 
 | `account_type` | Destination |
 | --- | --- |
-| `organisation` | `/portal/callback` |
+| `organisation` | `/app/callback` |
 | `personal` | `/app/personal` |
 
 Redirect logic lives in testable helpers in `lib/auth.ts`:

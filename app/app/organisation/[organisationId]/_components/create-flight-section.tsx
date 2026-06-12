@@ -3,6 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { Modal } from "@/components/modal";
+import { PortalAlerts } from "@/components/portal-alerts";
+import { PortalButton } from "@/components/portal-button";
+import {
+  portalFieldClassName,
+  portalFieldGroupClassName,
+  portalLabelClassName,
+} from "@/components/portal-styles";
 import type { FleetAircraftListItem } from "@/lib/fleet";
 import type { OrganisationMember } from "@/lib/organisation";
 
@@ -10,6 +18,8 @@ type CreateFlightSectionProps = {
   organisationId: string;
   aircraft: FleetAircraftListItem[];
   members: OrganisationMember[];
+  open: boolean;
+  onClose: () => void;
 };
 
 type ApiErrorResponse = {
@@ -39,21 +49,27 @@ export function CreateFlightSection({
   organisationId,
   aircraft,
   members,
+  open,
+  onClose,
 }: CreateFlightSectionProps) {
   const router = useRouter();
-  const [showForm, setShowForm] = useState(false);
   const [aircraftId, setAircraftId] = useState("");
   const [picUserId, setPicUserId] = useState("");
   const [flightPlanFile, setFlightPlanFile] = useState<File | null>(null);
   const [submitPending, setSubmitPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function handleClose() {
+    if (submitPending) {
+      return;
+    }
+
+    setError(null);
+    onClose();
+  }
+
   /**
    * Creates a flight and redirects to the flights status page.
-   *
-   * - Builds multipart form data with aircraft, PIC, and PDF file
-   * - POSTs to `/api/organisations/{organisationId}/flights`
-   * - Navigates to the flights page with flight and job ids on success
    */
   async function handleCreateFlight(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -96,81 +112,85 @@ export function CreateFlightSection({
   }
 
   return (
-    <section>
-      {!showForm ? (
-        <button type="button" onClick={() => setShowForm(true)}>
-          Create flight
-        </button>
-      ) : (
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title="Add flight"
+      footer={
         <>
-          <h2>Create flight</h2>
-
-          {error ? <p role="alert">{error}</p> : null}
-
-          <form onSubmit={handleCreateFlight}>
-            <div>
-              <label htmlFor="aircraft_id">Aircraft</label>
-              <select
-                id="aircraft_id"
-                value={aircraftId}
-                onChange={(event) => setAircraftId(event.target.value)}
-                required
-              >
-                <option value="">Select aircraft</option>
-                {aircraft.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.tail_number} — {item.model}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="pic_user_id">PIC</label>
-              <select
-                id="pic_user_id"
-                value={picUserId}
-                onChange={(event) => setPicUserId(event.target.value)}
-                required
-              >
-                <option value="">Select PIC</option>
-                {members.map((member) => (
-                  <option key={member.user_id} value={member.user_id}>
-                    {member.display_name ?? "Unknown"} — {member.role}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="flight_plan">Flight plan PDF</label>
-              <input
-                id="flight_plan"
-                name="flight_plan"
-                type="file"
-                accept="application/pdf,.pdf"
-                onChange={(event) =>
-                  setFlightPlanFile(event.target.files?.[0] ?? null)
-                }
-                required
-              />
-            </div>
-
-            <div>
-              <button type="submit" disabled={submitPending}>
-                Create flight
-              </button>
-              <button
-                type="button"
-                disabled={submitPending}
-                onClick={() => setShowForm(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
+          <PortalButton variant="secondary" disabled={submitPending} onClick={handleClose}>
+            Cancel
+          </PortalButton>
+          <PortalButton
+            type="submit"
+            form="create-flight-form"
+            disabled={submitPending}
+          >
+            {submitPending ? "Creating..." : "Create flight"}
+          </PortalButton>
         </>
-      )}
-    </section>
+      }
+    >
+      <PortalAlerts error={error} />
+
+      <form id="create-flight-form" onSubmit={handleCreateFlight} className="space-y-4">
+        <div className={portalFieldGroupClassName}>
+          <label htmlFor="aircraft_id" className={portalLabelClassName}>
+            Aircraft
+          </label>
+          <select
+            id="aircraft_id"
+            value={aircraftId}
+            onChange={(event) => setAircraftId(event.target.value)}
+            required
+            className={portalFieldClassName}
+          >
+            <option value="">Select aircraft</option>
+            {aircraft.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.tail_number} — {item.model}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className={portalFieldGroupClassName}>
+          <label htmlFor="pic_user_id" className={portalLabelClassName}>
+            PIC
+          </label>
+          <select
+            id="pic_user_id"
+            value={picUserId}
+            onChange={(event) => setPicUserId(event.target.value)}
+            required
+            className={portalFieldClassName}
+          >
+            <option value="">Select PIC</option>
+            {members.map((member) => (
+              <option key={member.user_id} value={member.user_id}>
+                {member.display_name ?? "Unknown"} — {member.role}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className={portalFieldGroupClassName}>
+          <label htmlFor="flight_plan" className={portalLabelClassName}>
+            Flight plan PDF
+          </label>
+          <input
+            id="flight_plan"
+            name="flight_plan"
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={(event) =>
+              setFlightPlanFile(event.target.files?.[0] ?? null)
+            }
+            required
+            className={portalFieldClassName}
+          />
+        </div>
+      </form>
+    </Modal>
   );
 }

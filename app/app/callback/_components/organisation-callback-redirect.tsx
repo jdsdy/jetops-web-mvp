@@ -8,9 +8,9 @@ import {
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Resolves organisation membership after login and redirects to the portal.
+ * Resolves organisation membership after login and redirects to the app.
  */
-export async function PortalCallbackRedirect() {
+export async function OrganisationCallbackRedirect() {
   const supabase = await createClient();
   const {
     data: { user },

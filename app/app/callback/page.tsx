@@ -1,15 +1,15 @@
 import { Suspense } from "react";
 
-import { PortalCallbackRedirect } from "@/app/portal/callback/_components/portal-callback-redirect";
+import { OrganisationCallbackRedirect } from "@/app/app/callback/_components/organisation-callback-redirect";
 import { CallbackLoader } from "@/components/callback-loader";
 
 /**
  * Shows a loader while organisation membership is resolved after login.
  */
-export default function OrganisationPortalCallbackPage() {
+export default function OrganisationCallbackPage() {
   return (
     <Suspense fallback={<CallbackLoader />}>
-      <PortalCallbackRedirect />
+      <OrganisationCallbackRedirect />
     </Suspense>
   );
 }

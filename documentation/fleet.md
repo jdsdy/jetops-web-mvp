@@ -1,6 +1,6 @@
 # Organisation fleet
 
-Organisation members view fleet aircraft on `/portal/organisation/{organisationId}`. Admins can add aircraft from the shared `aircraft_reference` catalogue.
+Organisation members view fleet aircraft on `/app/organisation/{organisationId}`. Admins can add aircraft from the shared `aircraft_reference` catalogue.
 
 ## Data model
 
@@ -149,7 +149,7 @@ Response: `204` with no body.
 
 ## Portal UI
 
-On `/portal/organisation/{organisationId}`:
+On `/app/organisation/{organisationId}`:
 
 - All active members see the fleet list (manufacturer, model, tail number)
 - Admins also see a **Manage** button on each aircraft that opens a dialog to update tail number, seats, RNAV equipped, or delete the aircraft

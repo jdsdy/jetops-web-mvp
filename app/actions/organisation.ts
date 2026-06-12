@@ -6,7 +6,7 @@ import {
   INVITATION_INVALID_MESSAGE,
   formatMemberDisplayName,
   getActiveMembership,
-  getOrganisationPortalRedirect,
+  getOrganisationRedirect,
   isInvitationAcceptable,
   validateOrganisationName,
 } from "@/lib/organisation";
@@ -21,7 +21,7 @@ type AcceptInviteResult = {
 };
 
 /**
- * Creates an organisation for the signed-in user and redirects to its portal.
+ * Creates an organisation for the signed-in user and redirects to the app.
  */
 export async function createOrganisation(
   _prevState: CreateOrganisationResult,
@@ -64,7 +64,7 @@ export async function createOrganisation(
 
   const membership = await getActiveMembership(supabase, user.id);
 
-  redirect(getOrganisationPortalRedirect(membership));
+  redirect(getOrganisationRedirect(membership));
 }
 
 /**
@@ -118,5 +118,5 @@ export async function acceptInvitation(
 
   const membership = await getActiveMembership(supabase, user.id);
 
-  redirect(getOrganisationPortalRedirect(membership));
+  redirect(getOrganisationRedirect(membership));
 }

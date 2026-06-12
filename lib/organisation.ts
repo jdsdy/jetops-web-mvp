@@ -409,13 +409,6 @@ export function getInviteExpiryDate(now: Date = new Date()): Date {
 }
 
 /**
- * Returns the portal route for an organisation.
- */
-export function getOrganisationPortalPath(organisationId: string): string {
-  return `/portal/organisation/${organisationId}`;
-}
-
-/**
  * Returns the app route for an organisation.
  */
 export function getOrganisationAppPath(organisationId: string): string {
@@ -423,16 +416,16 @@ export function getOrganisationAppPath(organisationId: string): string {
 }
 
 /**
- * Returns the portal route for a user's active organisation membership.
+ * Returns the organisation app route for a user's active membership.
  */
-export function getOrganisationPortalRedirect(
+export function getOrganisationRedirect(
   membership: Pick<OrganisationMembership, "organisations"> | null,
 ): string {
   if (!membership) {
-    return "/portal/organisation/setup";
+    return "/app/organisation/setup";
   }
 
-  return getOrganisationPortalPath(membership.organisations.id);
+  return getOrganisationAppPath(membership.organisations.id);
 }
 
 /**
@@ -544,7 +537,7 @@ type OrganisationRouteAccess =
 /**
  * Resolves access for an organisation-scoped app route.
  */
-export async function resolveOrganisationAppRouteAccess(
+export async function resolveOrganisationRouteAccess(
   supabase: SupabaseClient,
   userId: string,
   organisationId: string,
@@ -570,33 +563,7 @@ export async function resolveOrganisationAppRouteAccess(
 
   return {
     outcome: "redirect",
-    path: getOrganisationPortalRedirect(userMembership),
-  };
-}
-
-/**
- * Resolves access for an organisation-scoped portal route.
- */
-export async function resolveOrganisationPortalRouteAccess(
-  supabase: SupabaseClient,
-  userId: string,
-  organisationId: string,
-): Promise<OrganisationRouteAccess> {
-  const membership = await requireOrganisationRouteMembership(
-    supabase,
-    userId,
-    organisationId,
-  );
-
-  if (membership) {
-    return { outcome: "ok", membership };
-  }
-
-  const userMembership = await getUserOrganisationMembership(supabase, userId);
-
-  return {
-    outcome: "redirect",
-    path: getOrganisationPortalRedirect(userMembership),
+    path: getOrganisationRedirect(userMembership),
   };
 }
 
@@ -663,13 +630,13 @@ export async function getOrganisationMembers(
 }
 
 /**
- * Resolves where an organisation user should go after the portal callback check.
+ * Resolves where an organisation user should go after the app callback check.
  */
 export function resolveOrganisationCallbackRedirect(
   membership: OrganisationMembership | null,
 ): { outcome: "disabled" } | { outcome: "redirect"; path: string } {
   if (!membership) {
-    return { outcome: "redirect", path: "/portal/organisation/setup" };
+    return { outcome: "redirect", path: "/app/organisation/setup" };
   }
 
   if (membership.status === "disabled") {
@@ -679,11 +646,11 @@ export function resolveOrganisationCallbackRedirect(
   if (membership.status === "active") {
     return {
       outcome: "redirect",
-      path: getOrganisationPortalPath(membership.organisations.id),
+      path: getOrganisationAppPath(membership.organisations.id),
     };
   }
 
-  return { outcome: "redirect", path: "/portal/organisation/setup" };
+  return { outcome: "redirect", path: "/app/organisation/setup" };
 }
 
 /**

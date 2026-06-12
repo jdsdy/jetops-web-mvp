@@ -25,3 +25,12 @@
 .animate-fade-up-delay {
   animation: fade-up 0.7s ease-out 0.15s both;
 }
+
+@keyframes analysis-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}

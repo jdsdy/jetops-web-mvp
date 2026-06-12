@@ -5,7 +5,7 @@ import { BounceLoader } from "react-spinners";
 const loaderColor = "#a3a3a3";
 
 /**
- * Centred loading indicator for auth and portal callback pages.
+ * Centred loading indicator for auth and organisation callback pages.
  */
 export function CallbackLoader() {
   return (

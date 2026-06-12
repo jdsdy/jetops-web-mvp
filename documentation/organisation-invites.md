@@ -1,6 +1,6 @@
 # Organisation invites
 
-Organisation admins can invite and manage pending members from `/portal/organisation/{organisationId}`.
+Organisation admins can invite and manage pending members from `/app/organisation/{organisationId}`.
 
 ## Requirements
 
@@ -85,7 +85,7 @@ Response: `204`
 
 ## Invite flow
 
-1. Admin submits invite form on the portal page (or `POST` above).
+1. Admin submits invite form on the organisation home page (or `POST` above).
 2. API validates session and admin membership via `requireOrgAdmin`.
 3. API calls `supabaseAdmin.auth.admin.inviteUserByEmail` with user metadata and `redirectTo: /auth/accept-invite`.
 4. On success, API calls `create_organisation_invite_records` to insert:
@@ -118,7 +118,7 @@ Routes:
 7. Server action calls `accept_organisation_invitation`, which:
    - Sets `accepted_at = now()`
    - Updates membership `status` from `pending` to `active`
-8. User is redirected to `/portal/organisation/{organisationId}`.
+8. User is redirected to `/app/organisation/{organisationId}`.
 
 ## Environment variables
 

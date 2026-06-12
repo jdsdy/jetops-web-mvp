@@ -11,7 +11,7 @@ type SetupFormState = {
 const initialState: SetupFormState = {};
 
 /**
- * Form for creating a new organisation during portal setup.
+ * Form for creating a new organisation during app setup.
  */
 export function OrganisationSetupForm() {
   const [state, action, pending] = useActionState(createOrganisation, initialState);

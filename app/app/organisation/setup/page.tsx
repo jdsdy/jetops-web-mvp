@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 
-import { OrganisationSetupForm } from "@/app/portal/organisation/setup/_components/organisation-setup-form";
+import { OrganisationSetupForm } from "@/app/app/organisation/setup/_components/organisation-setup-form";
 import {
   getActiveMembership,
-  getOrganisationPortalRedirect,
+  getOrganisationRedirect,
 } from "@/lib/organisation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -20,7 +20,7 @@ export default async function OrganisationSetupPage() {
   const membership = await getActiveMembership(supabase, user.id);
 
   if (membership) {
-    redirect(getOrganisationPortalRedirect(membership));
+    redirect(getOrganisationRedirect(membership));
   }
 
   return (

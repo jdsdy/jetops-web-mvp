@@ -1,7 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { Modal } from "@/components/modal";
+import { PortalAlerts } from "@/components/portal-alerts";
+import { PortalButton } from "@/components/portal-button";
+import {
+  portalCardClassName,
+  portalFieldClassName,
+  portalFieldGroupClassName,
+  portalLabelClassName,
+  portalLinkClassName,
+  portalTdClassName,
+} from "@/components/portal-styles";
+import { PortalTable } from "@/components/portal-table";
+import { SectionHeader } from "@/components/section-header";
+import { TableSkeleton } from "@/components/table-skeleton";
 import type {
   AircraftReferenceGroup,
   FleetAircraftListItem,
@@ -10,6 +24,7 @@ import type {
 type FleetSectionProps = {
   organisationId: string;
   isAdmin: boolean;
+  initialFleet?: FleetAircraftListItem[];
 };
 
 type ApiErrorResponse = {
@@ -19,9 +34,12 @@ type ApiErrorResponse = {
 /**
  * Displays an organisation fleet and lets admins add and manage aircraft.
  */
-export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
-  const manageDialogRef = useRef<HTMLDialogElement>(null);
-  const [fleet, setFleet] = useState<FleetAircraftListItem[]>([]);
+export function FleetSection({
+  organisationId,
+  isAdmin,
+  initialFleet,
+}: FleetSectionProps) {
+  const [fleet, setFleet] = useState<FleetAircraftListItem[]>(initialFleet ?? []);
   const [referenceGroups, setReferenceGroups] = useState<AircraftReferenceGroup[]>(
     [],
   );
@@ -35,7 +53,9 @@ export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
   const [editTailNumber, setEditTailNumber] = useState("");
   const [editSeats, setEditSeats] = useState("");
   const [editRnavEquipped, setEditRnavEquipped] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initialFleet === undefined);
+  const [addOpen, setAddOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const [submitPending, setSubmitPending] = useState(false);
   const [managePending, setManagePending] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
@@ -50,12 +70,6 @@ export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
     [referenceGroups, selectedManufacturer],
   );
 
-  /**
-   * Loads fleet aircraft for the organisation.
-   *
-   * - Fetches `/api/organisations/{organisationId}/fleet`
-   * - Surfaces API errors and stops loading on failure
-   */
   const loadFleet = useCallback(async () => {
     const response = await fetch(`/api/organisations/${organisationId}/fleet`);
     const result = (await response.json()) as
@@ -75,9 +89,6 @@ export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
     return true;
   }, [organisationId]);
 
-  /**
-   * Loads aircraft reference data for admin dropdown menus.
-   */
   const loadReferenceData = useCallback(async () => {
     const response = await fetch("/api/aircraft-reference");
     const result = (await response.json()) as
@@ -99,25 +110,23 @@ export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
 
   useEffect(() => {
     async function loadInitialData() {
-      setLoading(true);
+      if (initialFleet === undefined) {
+        setLoading(true);
+      }
+
       setError(null);
 
-      const fleetLoaded = await loadFleet();
-      const referenceLoaded = isAdmin ? await loadReferenceData() : true;
-
-      if (fleetLoaded && referenceLoaded) {
-        setLoading(false);
-      } else {
-        setLoading(false);
+      await loadFleet();
+      if (isAdmin) {
+        await loadReferenceData();
       }
+
+      setLoading(false);
     }
 
     void loadInitialData();
-  }, [isAdmin, loadFleet, loadReferenceData]);
+  }, [initialFleet, isAdmin, loadFleet, loadReferenceData]);
 
-  /**
-   * Opens the manage dialog for a fleet aircraft.
-   */
   function openManageDialog(aircraft: FleetAircraftListItem) {
     setManagedAircraft(aircraft);
     setEditTailNumber(aircraft.tail_number);
@@ -125,24 +134,23 @@ export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
     setEditRnavEquipped(aircraft.rnav_equipped);
     setError(null);
     setMessage(null);
-    manageDialogRef.current?.showModal();
+    setManageOpen(true);
   }
 
-  /**
-   * Closes the manage dialog and clears edit state.
-   */
   function closeManageDialog() {
     setManagedAircraft(null);
-    manageDialogRef.current?.close();
+    setManageOpen(false);
   }
 
-  /**
-   * Adds an aircraft to the organisation fleet.
-   *
-   * - Validates the selected manufacturer/model pair locally
-   * - POSTs the payload to `/api/organisations/{organisationId}/fleet`
-   * - Clears the form and reloads the fleet list on success
-   */
+  function closeAddDialog() {
+    if (submitPending) {
+      return;
+    }
+
+    setAddOpen(false);
+    setError(null);
+  }
+
   async function handleAddAircraft(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitPending(true);
@@ -184,15 +192,10 @@ export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
     setRnavEquipped(false);
     setMessage("Aircraft added to fleet.");
     setSubmitPending(false);
+    setAddOpen(false);
     await loadFleet();
   }
 
-  /**
-   * Updates a fleet aircraft via PATCH.
-   *
-   * - Sends tail number, seats, and RNAV flag to the aircraft route
-   * - Closes the dialog and reloads the fleet list on success
-   */
   async function handleUpdateAircraft(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -231,12 +234,6 @@ export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
     await loadFleet();
   }
 
-  /**
-   * Deletes a fleet aircraft via DELETE.
-   *
-   * - Calls the aircraft route for the selected row
-   * - Closes the dialog and reloads the fleet list on success
-   */
   async function handleDeleteAircraft() {
     if (!managedAircraft) {
       return;
@@ -266,58 +263,108 @@ export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
     await loadFleet();
   }
 
-  if (loading) {
-    return <p>Loading fleet...</p>;
-  }
-
   return (
-    <section>
-      <h2>Fleet</h2>
+    <div className={portalCardClassName}>
+      <SectionHeader
+        title="Fleet"
+        description="Organisation aircraft available for flight planning."
+        action={
+          isAdmin ? (
+            <PortalButton onClick={() => setAddOpen(true)}>
+              + Add aircraft
+            </PortalButton>
+          ) : undefined
+        }
+      />
 
-      {error ? <p role="alert">{error}</p> : null}
-      {message ? <p>{message}</p> : null}
+      <PortalAlerts error={error} message={message} />
 
-      {fleet.length === 0 ? (
-        <p>No aircraft in the fleet yet.</p>
+      {loading ? (
+        <TableSkeleton columns={6} rows={5} />
+      ) : fleet.length === 0 ? (
+        <p className="text-sm text-aviation-slate">
+          No aircraft in the fleet yet.
+        </p>
       ) : (
-        <ul>
+        <PortalTable
+          columns={
+            isAdmin
+              ? ["Manufacturer", "Model", "Tail number", "Seats", "RNAV", "Actions"]
+              : ["Manufacturer", "Model", "Tail number", "Seats", "RNAV"]
+          }
+        >
           {fleet.map((aircraft) => (
-            <li key={aircraft.id}>
-              <span>{aircraft.manufacturer}</span>
-              <span> — </span>
-              <span>{aircraft.model}</span>
-              <span> — </span>
-              <span>{aircraft.tail_number}</span>
+            <tr key={aircraft.id} className="hover:bg-neutral-50">
+              <td className={portalTdClassName}>{aircraft.manufacturer}</td>
+              <td className={portalTdClassName}>{aircraft.model}</td>
+              <td className={portalTdClassName}>{aircraft.tail_number}</td>
+              <td className={portalTdClassName}>{aircraft.seats}</td>
+              <td className={portalTdClassName}>
+                {aircraft.rnav_equipped ? "Yes" : "No"}
+              </td>
               {isAdmin ? (
-                <>
-                  <span> </span>
-                  <button type="button" onClick={() => openManageDialog(aircraft)}>
+                <td className={portalTdClassName}>
+                  <button
+                    type="button"
+                    onClick={() => openManageDialog(aircraft)}
+                    className={portalLinkClassName}
+                  >
                     Manage
                   </button>
-                </>
+                </td>
               ) : null}
-            </li>
+            </tr>
           ))}
-        </ul>
+        </PortalTable>
       )}
 
       {isAdmin ? (
         <>
-          <dialog
-            ref={manageDialogRef}
-            onClose={() => setManagedAircraft(null)}
+          <Modal
+            open={manageOpen}
+            onClose={closeManageDialog}
+            title="Manage aircraft"
+            footer={
+              <>
+                <PortalButton
+                  variant="secondary"
+                  disabled={managePending || deletePending}
+                  onClick={closeManageDialog}
+                >
+                  Cancel
+                </PortalButton>
+                <PortalButton
+                  variant="secondary"
+                  disabled={managePending || deletePending}
+                  onClick={() => void handleDeleteAircraft()}
+                >
+                  {deletePending ? "Deleting..." : "Delete"}
+                </PortalButton>
+                <PortalButton
+                  type="submit"
+                  form="manage-aircraft-form"
+                  disabled={managePending || deletePending}
+                >
+                  {managePending ? "Saving..." : "Save changes"}
+                </PortalButton>
+              </>
+            }
           >
-            <form onSubmit={handleUpdateAircraft}>
-              <h3>Manage aircraft</h3>
+            {managedAircraft ? (
+              <p className="mb-4 text-sm text-aviation-slate">
+                {managedAircraft.manufacturer} — {managedAircraft.model}
+              </p>
+            ) : null}
 
-              {managedAircraft ? (
-                <p>
-                  {managedAircraft.manufacturer} — {managedAircraft.model}
-                </p>
-              ) : null}
-
-              <div>
-                <label htmlFor="edit_tail_number">Tail number</label>
+            <form
+              id="manage-aircraft-form"
+              onSubmit={handleUpdateAircraft}
+              className="space-y-4"
+            >
+              <div className={portalFieldGroupClassName}>
+                <label htmlFor="edit_tail_number" className={portalLabelClassName}>
+                  Tail number
+                </label>
                 <input
                   id="edit_tail_number"
                   name="edit_tail_number"
@@ -325,11 +372,14 @@ export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
                   value={editTailNumber}
                   onChange={(event) => setEditTailNumber(event.target.value)}
                   required
+                  className={portalFieldClassName}
                 />
               </div>
 
-              <div>
-                <label htmlFor="edit_seats">Seats</label>
+              <div className={portalFieldGroupClassName}>
+                <label htmlFor="edit_seats" className={portalLabelClassName}>
+                  Seats
+                </label>
                 <input
                   id="edit_seats"
                   name="edit_seats"
@@ -339,61 +389,58 @@ export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
                   value={editSeats}
                   onChange={(event) => setEditSeats(event.target.value)}
                   required
+                  className={portalFieldClassName}
                 />
               </div>
 
-              <div>
-                <label htmlFor="edit_rnav_equipped">
+              <div className={portalFieldGroupClassName}>
+                <label htmlFor="edit_rnav_equipped" className={portalLabelClassName}>
                   <input
                     id="edit_rnav_equipped"
                     name="edit_rnav_equipped"
                     type="checkbox"
                     checked={editRnavEquipped}
                     onChange={(event) => setEditRnavEquipped(event.target.checked)}
+                    className="mr-2"
                   />
                   RNAV equipped
                 </label>
               </div>
+            </form>
+          </Modal>
 
-              <div>
-                <label htmlFor="edit_custom_data">Custom data</label>
-                <input
-                  id="edit_custom_data"
-                  name="edit_custom_data"
-                  type="text"
-                  disabled
-                  placeholder="Coming soon"
-                />
-              </div>
-
-              <div>
-                <button type="submit" disabled={managePending || deletePending}>
-                  Save changes
-                </button>
-                <button
-                  type="button"
-                  disabled={managePending || deletePending}
-                  onClick={() => void handleDeleteAircraft()}
-                >
-                  Delete aircraft
-                </button>
-                <button
-                  type="button"
-                  disabled={managePending || deletePending}
-                  onClick={closeManageDialog}
+          <Modal
+            open={addOpen}
+            onClose={closeAddDialog}
+            title="Add aircraft"
+            footer={
+              <>
+                <PortalButton
+                  variant="secondary"
+                  disabled={submitPending}
+                  onClick={closeAddDialog}
                 >
                   Cancel
-                </button>
-              </div>
-            </form>
-          </dialog>
-
-          <section>
-            <h3>Add aircraft</h3>
-
-            <form onSubmit={handleAddAircraft}>
-              <div>
-                <label htmlFor="manufacturer">Manufacturer</label>
+                </PortalButton>
+                <PortalButton
+                  type="submit"
+                  form="add-aircraft-form"
+                  disabled={submitPending}
+                >
+                  {submitPending ? "Adding..." : "Add aircraft"}
+                </PortalButton>
+              </>
+            }
+          >
+            <form
+              id="add-aircraft-form"
+              onSubmit={handleAddAircraft}
+              className="space-y-4"
+            >
+              <div className={portalFieldGroupClassName}>
+                <label htmlFor="manufacturer" className={portalLabelClassName}>
+                  Manufacturer
+                </label>
                 <select
                   id="manufacturer"
                   value={selectedManufacturer}
@@ -402,6 +449,7 @@ export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
                     setSelectedModelId("");
                   }}
                   required
+                  className={portalFieldClassName}
                 >
                   <option value="">Select manufacturer</option>
                   {referenceGroups.map((group) => (
@@ -412,14 +460,17 @@ export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
                 </select>
               </div>
 
-              <div>
-                <label htmlFor="model">Model</label>
+              <div className={portalFieldGroupClassName}>
+                <label htmlFor="model" className={portalLabelClassName}>
+                  Model
+                </label>
                 <select
                   id="model"
                   value={selectedModelId}
                   onChange={(event) => setSelectedModelId(event.target.value)}
                   disabled={!selectedReferenceGroup}
                   required
+                  className={portalFieldClassName}
                 >
                   <option value="">Select model</option>
                   {selectedReferenceGroup?.models.map((model) => (
@@ -430,8 +481,10 @@ export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
                 </select>
               </div>
 
-              <div>
-                <label htmlFor="tail_number">Tail number</label>
+              <div className={portalFieldGroupClassName}>
+                <label htmlFor="tail_number" className={portalLabelClassName}>
+                  Tail number
+                </label>
                 <input
                   id="tail_number"
                   name="tail_number"
@@ -439,11 +492,14 @@ export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
                   value={tailNumber}
                   onChange={(event) => setTailNumber(event.target.value)}
                   required
+                  className={portalFieldClassName}
                 />
               </div>
 
-              <div>
-                <label htmlFor="seats">Seats</label>
+              <div className={portalFieldGroupClassName}>
+                <label htmlFor="seats" className={portalLabelClassName}>
+                  Seats
+                </label>
                 <input
                   id="seats"
                   name="seats"
@@ -453,40 +509,27 @@ export function FleetSection({ organisationId, isAdmin }: FleetSectionProps) {
                   value={seats}
                   onChange={(event) => setSeats(event.target.value)}
                   required
+                  className={portalFieldClassName}
                 />
               </div>
 
-              <div>
-                <label htmlFor="rnav_equipped">
+              <div className={portalFieldGroupClassName}>
+                <label htmlFor="rnav_equipped" className={portalLabelClassName}>
                   <input
                     id="rnav_equipped"
                     name="rnav_equipped"
                     type="checkbox"
                     checked={rnavEquipped}
                     onChange={(event) => setRnavEquipped(event.target.checked)}
+                    className="mr-2"
                   />
                   RNAV equipped
                 </label>
               </div>
-
-              <div>
-                <label htmlFor="custom_data">Custom data</label>
-                <input
-                  id="custom_data"
-                  name="custom_data"
-                  type="text"
-                  disabled
-                  placeholder="Coming soon"
-                />
-              </div>
-
-              <button type="submit" disabled={submitPending}>
-                Add aircraft
-              </button>
             </form>
-          </section>
+          </Modal>
         </>
       ) : null}
-    </section>
+    </div>
   );
 }

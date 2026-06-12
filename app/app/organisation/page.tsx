@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import {
   getOrganisationAppPath,
-  getOrganisationPortalRedirect,
+  getOrganisationRedirect,
   getUserOrganisationMembership,
 } from "@/lib/organisation";
 import { createClient } from "@/lib/supabase/server";
@@ -23,7 +23,7 @@ export default async function OrganisationAppPage() {
   const membership = await getUserOrganisationMembership(supabase, user.id);
 
   if (!membership || membership.status !== "active") {
-    redirect(getOrganisationPortalRedirect(membership));
+    redirect(getOrganisationRedirect(membership));
   }
 
   redirect(getOrganisationAppPath(membership.organisations.id));

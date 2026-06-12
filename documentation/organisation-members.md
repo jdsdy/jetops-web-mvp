@@ -1,6 +1,6 @@
 # Organisation members API
 
-Organisation admins manage members from `/portal/organisation/{organisationId}` via the user management section.
+Organisation admins manage members from `/app/organisation/{organisationId}` via the user management section.
 
 ## Requirements
 
@@ -91,7 +91,7 @@ Deactivates a member by setting `status = 'disabled'`. Does not hard-delete the 
 
 Also bans the user from signing in again via `auth.admin.updateUserById` with `ban_duration: '876000h'`.
 
-Access is blocked on subsequent API and portal requests by the disabled membership status and auth ban. Existing sessions are not forcibly revoked.
+Access is blocked on subsequent API and app requests by the disabled membership status and auth ban. Existing sessions are not forcibly revoked.
 
 The same ban runs when `PATCH` sets `status` to `disabled`.
 
@@ -124,7 +124,7 @@ The organisation creator receives `is_owner = true` from the `create_organisatio
 
 ## Portal UI
 
-Admins see the **User management** section on `/portal/organisation/{organisationId}`:
+Admins see the **User management** section on `/app/organisation/{organisationId}`:
 
 - Active members: edit role, toggle admin, deactivate
 - Disabled members: re-enable

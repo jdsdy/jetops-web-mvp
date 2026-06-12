@@ -43,7 +43,7 @@ The Jet Ops MVP project URL is `https://wohclkrdcyykdjqzczgy.supabase.co`.
 1. User submits email and password on `/auth`.
 2. On success, the server loads `profiles` and redirects:
    - Incomplete onboarding → `/onboarding`
-   - Organisation → `/portal/callback` (membership resolution; disabled users are signed out)
+   - Organisation → `/app/callback` (membership resolution; disabled users are signed out)
    - Personal → `/app/personal`
 
 ## Logout
