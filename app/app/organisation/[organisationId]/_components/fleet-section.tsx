@@ -20,6 +20,11 @@ import type {
   AircraftReferenceGroup,
   FleetAircraftListItem,
 } from "@/lib/fleet";
+import {
+  CustomAircraftFields,
+  EMPTY_CUSTOM_AIRCRAFT_FORM,
+  type CustomAircraftFormValues,
+} from "@/app/app/organisation/[organisationId]/_components/custom-aircraft-fields";
 
 type FleetSectionProps = {
   organisationId: string;
@@ -48,6 +53,9 @@ export function FleetSection({
   const [tailNumber, setTailNumber] = useState("");
   const [seats, setSeats] = useState("");
   const [rnavEquipped, setRnavEquipped] = useState(false);
+  const [useCustomAircraft, setUseCustomAircraft] = useState(false);
+  const [customAircraftForm, setCustomAircraftForm] =
+    useState<CustomAircraftFormValues>(EMPTY_CUSTOM_AIRCRAFT_FORM);
   const [managedAircraft, setManagedAircraft] =
     useState<FleetAircraftListItem | null>(null);
   const [editTailNumber, setEditTailNumber] = useState("");
@@ -142,6 +150,16 @@ export function FleetSection({
     setManageOpen(false);
   }
 
+  function resetAddForm() {
+    setSelectedManufacturer("");
+    setSelectedModelId("");
+    setTailNumber("");
+    setSeats("");
+    setRnavEquipped(false);
+    setUseCustomAircraft(false);
+    setCustomAircraftForm(EMPTY_CUSTOM_AIRCRAFT_FORM);
+  }
+
   function closeAddDialog() {
     if (submitPending) {
       return;
@@ -149,6 +167,7 @@ export function FleetSection({
 
     setAddOpen(false);
     setError(null);
+    resetAddForm();
   }
 
   async function handleAddAircraft(event: React.FormEvent<HTMLFormElement>) {
@@ -157,10 +176,37 @@ export function FleetSection({
     setError(null);
     setMessage(null);
 
-    const aircraftRefId = Number(selectedModelId);
-    const seatCount = Number(seats);
+    const requestBody = useCustomAircraft
+      ? {
+          manufacturer: customAircraftForm.manufacturer,
+          model: customAircraftForm.model,
+          tail_number: customAircraftForm.tailNumber,
+          seats: Number(customAircraftForm.seats),
+          rnav_equipped: customAircraftForm.rnavEquipped,
+          icao_wtc: customAircraftForm.icaoWtc,
+          weight_class: customAircraftForm.weightClass,
+          wingspan_ft: Number(customAircraftForm.wingspanFt),
+          length_ft: Number(customAircraftForm.lengthFt),
+          aac: customAircraftForm.aac,
+          adg: customAircraftForm.adg,
+        }
+      : {
+          aircraft_ref_id: Number(selectedModelId),
+          tail_number: tailNumber,
+          seats: Number(seats),
+          rnav_equipped: rnavEquipped,
+        };
 
-    if (!selectedManufacturer || !selectedModelId) {
+    if (useCustomAircraft) {
+      if (
+        !customAircraftForm.manufacturer.trim() ||
+        !customAircraftForm.model.trim()
+      ) {
+        setError("Manufacturer and model are required");
+        setSubmitPending(false);
+        return;
+      }
+    } else if (!selectedManufacturer || !selectedModelId) {
       setError("Manufacturer and model are required");
       setSubmitPending(false);
       return;
@@ -169,12 +215,7 @@ export function FleetSection({
     const response = await fetch(`/api/organisations/${organisationId}/fleet`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        aircraft_ref_id: aircraftRefId,
-        tail_number: tailNumber,
-        seats: seatCount,
-        rnav_equipped: rnavEquipped,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     const result = (await response.json()) as ApiErrorResponse;
@@ -185,11 +226,7 @@ export function FleetSection({
       return;
     }
 
-    setSelectedManufacturer("");
-    setSelectedModelId("");
-    setTailNumber("");
-    setSeats("");
-    setRnavEquipped(false);
+    resetAddForm();
     setMessage("Aircraft added to fleet.");
     setSubmitPending(false);
     setAddOpen(false);
@@ -437,95 +474,116 @@ export function FleetSection({
               onSubmit={handleAddAircraft}
               className="space-y-4"
             >
-              <div className={portalFieldGroupClassName}>
-                <label htmlFor="manufacturer" className={portalLabelClassName}>
-                  Manufacturer
-                </label>
-                <select
-                  id="manufacturer"
-                  value={selectedManufacturer}
-                  onChange={(event) => {
-                    setSelectedManufacturer(event.target.value);
-                    setSelectedModelId("");
+              {useCustomAircraft ? (
+                <CustomAircraftFields
+                  values={customAircraftForm}
+                  onChange={setCustomAircraftForm}
+                  onChooseFromList={() => {
+                    setUseCustomAircraft(false);
+                    setCustomAircraftForm(EMPTY_CUSTOM_AIRCRAFT_FORM);
                   }}
-                  required
-                  className={portalFieldClassName}
-                >
-                  <option value="">Select manufacturer</option>
-                  {referenceGroups.map((group) => (
-                    <option key={group.manufacturer} value={group.manufacturer}>
-                      {group.manufacturer}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className={portalFieldGroupClassName}>
-                <label htmlFor="model" className={portalLabelClassName}>
-                  Model
-                </label>
-                <select
-                  id="model"
-                  value={selectedModelId}
-                  onChange={(event) => setSelectedModelId(event.target.value)}
-                  disabled={!selectedReferenceGroup}
-                  required
-                  className={portalFieldClassName}
-                >
-                  <option value="">Select model</option>
-                  {selectedReferenceGroup?.models.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.model}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className={portalFieldGroupClassName}>
-                <label htmlFor="tail_number" className={portalLabelClassName}>
-                  Tail number
-                </label>
-                <input
-                  id="tail_number"
-                  name="tail_number"
-                  type="text"
-                  value={tailNumber}
-                  onChange={(event) => setTailNumber(event.target.value)}
-                  required
-                  className={portalFieldClassName}
                 />
-              </div>
+              ) : (
+                <>
+                  <div className={portalFieldGroupClassName}>
+                    <label htmlFor="manufacturer" className={portalLabelClassName}>
+                      Manufacturer
+                    </label>
+                    <select
+                      id="manufacturer"
+                      value={selectedManufacturer}
+                      onChange={(event) => {
+                        setSelectedManufacturer(event.target.value);
+                        setSelectedModelId("");
+                      }}
+                      required
+                      className={portalFieldClassName}
+                    >
+                      <option value="">Select manufacturer</option>
+                      {referenceGroups.map((group) => (
+                        <option key={group.manufacturer} value={group.manufacturer}>
+                          {group.manufacturer}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div className={portalFieldGroupClassName}>
-                <label htmlFor="seats" className={portalLabelClassName}>
-                  Seats
-                </label>
-                <input
-                  id="seats"
-                  name="seats"
-                  type="number"
-                  min={1}
-                  max={32767}
-                  value={seats}
-                  onChange={(event) => setSeats(event.target.value)}
-                  required
-                  className={portalFieldClassName}
-                />
-              </div>
+                  <div className={portalFieldGroupClassName}>
+                    <label htmlFor="model" className={portalLabelClassName}>
+                      Model
+                    </label>
+                    <select
+                      id="model"
+                      value={selectedModelId}
+                      onChange={(event) => setSelectedModelId(event.target.value)}
+                      disabled={!selectedReferenceGroup}
+                      required
+                      className={portalFieldClassName}
+                    >
+                      <option value="">Select model</option>
+                      {selectedReferenceGroup?.models.map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {model.model}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div className={portalFieldGroupClassName}>
-                <label htmlFor="rnav_equipped" className={portalLabelClassName}>
-                  <input
-                    id="rnav_equipped"
-                    name="rnav_equipped"
-                    type="checkbox"
-                    checked={rnavEquipped}
-                    onChange={(event) => setRnavEquipped(event.target.checked)}
-                    className="mr-2"
-                  />
-                  RNAV equipped
-                </label>
-              </div>
+                  <div className={portalFieldGroupClassName}>
+                    <label htmlFor="tail_number" className={portalLabelClassName}>
+                      Tail number
+                    </label>
+                    <input
+                      id="tail_number"
+                      name="tail_number"
+                      type="text"
+                      value={tailNumber}
+                      onChange={(event) => setTailNumber(event.target.value)}
+                      required
+                      className={portalFieldClassName}
+                    />
+                  </div>
+
+                  <div className={portalFieldGroupClassName}>
+                    <label htmlFor="seats" className={portalLabelClassName}>
+                      Seats
+                    </label>
+                    <input
+                      id="seats"
+                      name="seats"
+                      type="number"
+                      min={1}
+                      max={32767}
+                      value={seats}
+                      onChange={(event) => setSeats(event.target.value)}
+                      required
+                      className={portalFieldClassName}
+                    />
+                  </div>
+
+                  <div className={portalFieldGroupClassName}>
+                    <label htmlFor="rnav_equipped" className={portalLabelClassName}>
+                      <input
+                        id="rnav_equipped"
+                        name="rnav_equipped"
+                        type="checkbox"
+                        checked={rnavEquipped}
+                        onChange={(event) => setRnavEquipped(event.target.checked)}
+                        className="mr-2"
+                      />
+                      RNAV equipped
+                    </label>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setUseCustomAircraft(true)}
+                    className={portalLinkClassName}
+                  >
+                    My aircraft isn&apos;t listed
+                  </button>
+                </>
+              )}
             </form>
           </Modal>
         </>

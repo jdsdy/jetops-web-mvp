@@ -35,7 +35,7 @@ describe("groupAircraftReferenceByManufacturer", () => {
 });
 
 describe("validateFleetAircraftPayload", () => {
-  it("accepts a valid payload", () => {
+  it("accepts a valid reference payload", () => {
     expect(
       validateFleetAircraftPayload({
         aircraft_ref_id: 1,
@@ -46,6 +46,7 @@ describe("validateFleetAircraftPayload", () => {
     ).toEqual({
       valid: true,
       payload: {
+        kind: "reference",
         aircraft_ref_id: 1,
         tail_number: "N123AB",
         seats: 8,
@@ -54,7 +55,67 @@ describe("validateFleetAircraftPayload", () => {
     });
   });
 
-  it("rejects a missing aircraft reference id", () => {
+  it("accepts a valid custom aircraft payload", () => {
+    expect(
+      validateFleetAircraftPayload({
+        manufacturer: " Pilatus ",
+        model: " PC-24 ",
+        tail_number: "N999ZZ",
+        seats: 8,
+        rnav_equipped: true,
+        icao_wtc: "M",
+        weight_class: "Small+",
+        wingspan_ft: 100,
+        length_ft: 55.5,
+        aac: "C",
+        adg: "D",
+      }),
+    ).toEqual({
+      valid: true,
+      payload: {
+        kind: "custom",
+        manufacturer: "Pilatus",
+        model: "PC-24",
+        tail_number: "N999ZZ",
+        seats: 8,
+        rnav_equipped: true,
+        custom_data: {
+          icao_wtc: "M",
+          weight_class: "Small+",
+          wingspan_ft: 100,
+          length_ft: 55.5,
+          wingspan_m: 30.48,
+          length_m: 16.92,
+          aac: "C",
+          adg: "D",
+        },
+      },
+    });
+  });
+
+  it("rejects mixing reference and custom fields", () => {
+    expect(
+      validateFleetAircraftPayload({
+        aircraft_ref_id: 1,
+        manufacturer: "Gulfstream",
+        model: "G700",
+        tail_number: "N123AB",
+        seats: 8,
+        rnav_equipped: true,
+        icao_wtc: "H",
+        weight_class: "Heavy",
+        wingspan_ft: 99,
+        length_ft: 99,
+        aac: "D",
+        adg: "D",
+      }),
+    ).toEqual({
+      valid: false,
+      error: "Provide either aircraft_ref_id or custom aircraft details, not both",
+    });
+  });
+
+  it("rejects a missing aircraft reference id for reference aircraft", () => {
     expect(
       validateFleetAircraftPayload({
         tail_number: "N123AB",
@@ -81,20 +142,34 @@ describe("validateFleetAircraftPayload", () => {
     });
   });
 
-  it("rejects client-sent manufacturer and model fields", () => {
+  it("rejects custom aircraft with missing dimensions", () => {
     expect(
       validateFleetAircraftPayload({
-        aircraft_ref_id: 1,
-        manufacturer: "Gulfstream",
-        model: "G700",
-        tail_number: "N123AB",
+        manufacturer: "Pilatus",
+        model: "PC-24",
+        tail_number: "N999ZZ",
         seats: 8,
         rnav_equipped: true,
+        icao_wtc: "M",
+        weight_class: "Small",
+        wingspan_ft: 0,
+        length_ft: 55.5,
+        aac: "C",
+        adg: "D",
       }),
     ).toEqual({
       valid: false,
-      error: "Manufacturer and model are derived from the aircraft reference",
+      error: "Wingspan must be greater than zero",
     });
+  });
+});
+
+describe("convertFeetToMeters", () => {
+  it("converts feet to meters rounded to two decimal places", async () => {
+    const { convertFeetToMeters } = await import("@/lib/fleet");
+
+    expect(convertFeetToMeters(100)).toBe(30.48);
+    expect(convertFeetToMeters(55.5)).toBe(16.92);
   });
 });
 

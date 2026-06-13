@@ -106,6 +106,30 @@ export async function POST(
     }
 
     const adminClient = createAdminClient();
+
+    if (validation.payload.kind === "custom") {
+      const { data: createdAircraft, error: insertError } = await adminClient
+        .from("fleet_aircraft")
+        .insert({
+          organisation_id: membership.organisations.id,
+          aircraft_ref_id: null,
+          manufacturer: validation.payload.manufacturer,
+          model: validation.payload.model,
+          tail_number: validation.payload.tail_number,
+          seats: validation.payload.seats,
+          rnav_equipped: validation.payload.rnav_equipped,
+          custom_data: validation.payload.custom_data,
+        })
+        .select(FLEET_INSERT_SELECT)
+        .single();
+
+      if (insertError || !createdAircraft) {
+        return jsonError(insertError?.message ?? "Failed to add aircraft", 500);
+      }
+
+      return Response.json(createdAircraft, { status: 201 });
+    }
+
     const { data: reference, error: referenceError } = await adminClient
       .from("aircraft_reference")
       .select("id, manufacturer, model")

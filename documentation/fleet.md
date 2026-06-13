@@ -7,9 +7,9 @@ Organisation members view fleet aircraft on `/app/organisation/{organisationId}`
 | Table | Purpose |
 | --- | --- |
 | `aircraft_reference` | Global catalogue of aircraft types (manufacturer, model, dimensions, weight class, etc.) |
-| `fleet_aircraft` | Organisation-specific aircraft linked to `aircraft_reference` via `aircraft_ref_id` |
+| `fleet_aircraft` | Organisation-specific aircraft linked to `aircraft_reference` via `aircraft_ref_id`, or custom rows with `aircraft_ref_id` null and metadata in `custom_data` |
 
-Fleet rows denormalise `manufacturer` and `model` from the reference row at insert time.
+Reference aircraft rows denormalise `manufacturer` and `model` from the reference row at insert time. Custom aircraft store `manufacturer` and `model` from the client and store operational metadata in `custom_data`.
 
 ## Row level security
 
@@ -65,9 +65,11 @@ Response: `200`
 
 ### `POST /api/organisations/{organisationId}/fleet`
 
-Adds an aircraft to the organisation fleet.
+Adds an aircraft to the organisation fleet from either the shared catalogue or a custom specification.
 
 Auth: active organisation admin.
+
+#### Reference aircraft
 
 Request body:
 
@@ -87,7 +89,60 @@ Request body:
 | `seats` | Integer between 1 and 32767 |
 | `rnav_equipped` | Boolean |
 
-`manufacturer`, `model`, and `custom_data` are not accepted from the client. The server copies manufacturer and model from the reference row and stores `custom_data` as `null`.
+The server copies `manufacturer` and `model` from the reference row and stores `custom_data` as `null`.
+
+#### Custom aircraft
+
+Request body:
+
+```json
+{
+  "manufacturer": "Pilatus",
+  "model": "PC-24",
+  "tail_number": "N999ZZ",
+  "seats": 8,
+  "rnav_equipped": true,
+  "icao_wtc": "M",
+  "weight_class": "Small+",
+  "wingspan_ft": 100,
+  "length_ft": 55.5,
+  "aac": "C",
+  "adg": "D"
+}
+```
+
+| Field | Rules |
+| --- | --- |
+| `manufacturer` | Non-empty trimmed string |
+| `model` | Non-empty trimmed string |
+| `tail_number` | Non-empty trimmed string |
+| `seats` | Integer between 1 and 32767 |
+| `rnav_equipped` | Boolean |
+| `icao_wtc` | One of `L`, `M`, `H`, `J` |
+| `weight_class` | One of `Large`, `Heavy`, `Super`, `Small`, `Small+` |
+| `wingspan_ft` | Number greater than zero |
+| `length_ft` | Number greater than zero |
+| `aac` | One of `A`, `B`, `C`, `D`, `E` |
+| `adg` | One of `A`, `B`, `C`, `D`, `E`, `F` |
+
+The server stores `aircraft_ref_id` as `null` and writes a `custom_data` JSON object:
+
+```json
+{
+  "icao_wtc": "M",
+  "weight_class": "Small+",
+  "wingspan_ft": 100,
+  "length_ft": 55.5,
+  "wingspan_m": 30.48,
+  "length_m": 16.92,
+  "aac": "C",
+  "adg": "D"
+}
+```
+
+`wingspan_m` and `length_m` are derived from the feet values using a 0.3048 conversion factor, rounded to two decimal places.
+
+Do not send both `aircraft_ref_id` and custom aircraft fields in the same request.
 
 Response: `201` with the created fleet aircraft row.
 
@@ -153,11 +208,12 @@ On `/app/organisation/{organisationId}`:
 
 - All active members see the fleet list (manufacturer, model, tail number)
 - Admins also see a **Manage** button on each aircraft that opens a dialog to update tail number, seats, RNAV equipped, or delete the aircraft
-- Admins also see an **Add aircraft** form with:
-  - Manufacturer dropdown
-  - Model dropdown (enabled after manufacturer selection)
+- Admins also see an **Add aircraft** dialog with:
+  - Manufacturer and model dropdowns from `aircraft_reference`
   - Tail number, seats, RNAV equipped toggle
-  - Disabled custom data field (placeholder for future use)
+  - **My aircraft isn't listed** link to switch to a custom aircraft form
+  - Custom form fields: manufacturer, model, tail number, seats, RNAV equipped, ICAO wake turbulence category, FAA weight category, wingspan (ft), length (ft), aerodrome approach category, aircraft design group
+  - **Choose from aircraft list** link to return to the reference dropdowns
 
 ## Tests
 
