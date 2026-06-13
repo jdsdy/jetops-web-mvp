@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Public_Sans } from "next/font/google";
 import NextTopLoader from "nextjs-toploader";
+import { SpeedInsights } from "@vercel/speed-insights/next"
+import { Analytics } from "@vercel/analytics/next"
 
 import "./globals.css";
 
@@ -30,6 +32,8 @@ export default function RootLayout({
       <body className="flex min-h-full flex-col bg-white font-sans text-neutral-900">
         <NextTopLoader />
         {children}
+        <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
