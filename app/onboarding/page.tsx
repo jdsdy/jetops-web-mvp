@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { OnboardingForm } from "@/app/onboarding/_components/onboarding-form";
+import { SimpleFormPage } from "@/components/simple-form-page";
 import { getRedirectForProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -30,8 +31,8 @@ export default async function OnboardingPage() {
   }
 
   return (
-    <main>
+    <SimpleFormPage>
       <OnboardingForm accountType={profile.account_type} />
-    </main>
+    </SimpleFormPage>
   );
 }

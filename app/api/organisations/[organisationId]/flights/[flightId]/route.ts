@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { withApiLogging } from "@/lib/api-logging";
 import {
   isFlightExtractionEditableJobStatus,
   splitFlightExtractionUpdate,
@@ -23,33 +24,38 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ organisationId: string; flightId: string }> },
 ) {
-  const { organisationId, flightId } = await context.params;
-  const jobId = new URL(request.url).searchParams.get("jobId")?.trim();
+  return withApiLogging(request, async (logContext) => {
+    const { organisationId, flightId } = await context.params;
+    const jobId = new URL(request.url).searchParams.get("jobId")?.trim();
 
-  if (!jobId) {
-    return jsonError("Job id is required", 400);
-  }
+    if (!jobId) {
+      return jsonError("Job id is required", 400);
+    }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    return jsonError("Unauthorized", 401);
-  }
+    if (!user) {
+      return jsonError("Unauthorized", 401);
+    }
 
-  const { membership, error: memberError } = await requireActiveOrganisationMember(
-    supabase,
-    user.id,
-    organisationId,
-  );
+    logContext.set({ userId: user.id });
 
-  if (memberError || !membership) {
-    return jsonError("Forbidden", 403);
-  }
+    const { membership, error: memberError } = await requireActiveOrganisationMember(
+      supabase,
+      user.id,
+      organisationId,
+    );
 
-  const adminClient = createAdminClient();
+    if (memberError || !membership) {
+      return jsonError("Forbidden", 403);
+    }
+
+    logContext.set({ organisationId: membership.organisations.id });
+
+    const adminClient = createAdminClient();
   const resolvedOrganisationId = membership.organisations.id;
 
   const { data: flight, error: flightError } = await adminClient
@@ -85,9 +91,10 @@ export async function GET(
     return jsonError("Analysis job not found", 404);
   }
 
-  return Response.json({
-    job_id: analysisJob.id,
-    status: analysisJob.status,
+    return Response.json({
+      job_id: analysisJob.id,
+      status: analysisJob.status,
+    });
   });
 }
 
@@ -98,27 +105,32 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ organisationId: string; flightId: string }> },
 ) {
-  const { organisationId, flightId } = await context.params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  return withApiLogging(request, async (logContext) => {
+    const { organisationId, flightId } = await context.params;
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    return jsonError("Unauthorized", 401);
-  }
+    if (!user) {
+      return jsonError("Unauthorized", 401);
+    }
 
-  const { membership, error: memberError } = await requireActiveOrganisationMember(
-    supabase,
-    user.id,
-    organisationId,
-  );
+    logContext.set({ userId: user.id });
 
-  if (memberError || !membership) {
-    return jsonError("Forbidden", 403);
-  }
+    const { membership, error: memberError } = await requireActiveOrganisationMember(
+      supabase,
+      user.id,
+      organisationId,
+    );
 
-  let body: unknown;
+    if (memberError || !membership) {
+      return jsonError("Forbidden", 403);
+    }
+
+    logContext.set({ organisationId: membership.organisations.id });
+
+    let body: unknown;
 
   try {
     body = await request.json();
@@ -197,5 +209,6 @@ export async function PATCH(
     return jsonError(updateFlightPlanError.message, 500);
   }
 
-  return Response.json(validation.details);
+    return Response.json(validation.details);
+  });
 }

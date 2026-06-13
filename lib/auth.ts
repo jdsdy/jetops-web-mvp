@@ -248,7 +248,7 @@ export async function validateSignupCode(
 
   try {
     response = await fetch(`${getJetOpsApiUrl()}/v1/signup`, {
-      method: "GET",
+      method: "POST",
       headers: {
         "X-API-KEY": apiKey,
         "Content-Type": "application/json",

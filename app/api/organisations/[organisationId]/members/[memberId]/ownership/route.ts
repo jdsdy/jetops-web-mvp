@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { withApiLogging } from "@/lib/api-logging";
 import {
   assertOwnershipTransferAllowed,
   requireOrgAdmin,
@@ -73,67 +74,73 @@ async function loadOrganisationMemberByUserId(
  * Transfers organisation ownership to another active member.
  */
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ organisationId: string; memberId: string }> },
 ) {
-  const { organisationId, memberId } = await context.params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  return withApiLogging(request, async (logContext) => {
+    const { organisationId, memberId } = await context.params;
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    return jsonError("Unauthorized", 401);
-  }
+    if (!user) {
+      return jsonError("Unauthorized", 401);
+    }
 
-  const { membership, error: adminError } = await requireOrgAdmin(
-    supabase,
-    user.id,
-    organisationId,
-  );
+    logContext.set({ userId: user.id });
 
-  if (adminError || !membership) {
-    return jsonError("Forbidden", 403);
-  }
+    const { membership, error: adminError } = await requireOrgAdmin(
+      supabase,
+      user.id,
+      organisationId,
+    );
 
-  const actorMember = await loadOrganisationMemberByUserId(organisationId, user.id);
-  const targetMember = await loadOrganisationMember(organisationId, memberId);
+    if (adminError || !membership) {
+      return jsonError("Forbidden", 403);
+    }
 
-  if (!actorMember || !targetMember) {
-    return jsonError("Member not found", 404);
-  }
+    logContext.set({ organisationId: membership.organisations.id });
 
-  const guard = assertOwnershipTransferAllowed({
-    actorMember,
-    targetMember,
+    const actorMember = await loadOrganisationMemberByUserId(organisationId, user.id);
+    const targetMember = await loadOrganisationMember(organisationId, memberId);
+
+    if (!actorMember || !targetMember) {
+      return jsonError("Member not found", 404);
+    }
+
+    const guard = assertOwnershipTransferAllowed({
+      actorMember,
+      targetMember,
+    });
+
+    if (!guard.allowed) {
+      return jsonError(guard.error, 400);
+    }
+
+    const adminClient = createAdminClient();
+    const { error: transferError } = await adminClient.rpc(
+      "transfer_organisation_ownership",
+      {
+        p_organisation_id: organisationId,
+        p_current_owner_member_id: actorMember.id,
+        p_target_member_id: targetMember.id,
+      },
+    );
+
+    if (transferError) {
+      return jsonError(transferError.message, 500);
+    }
+
+    const updatedTargetMember = await loadOrganisationMember(
+      organisationId,
+      memberId,
+    );
+
+    if (!updatedTargetMember) {
+      return jsonError("Failed to load updated member", 500);
+    }
+
+    return Response.json(updatedTargetMember);
   });
-
-  if (!guard.allowed) {
-    return jsonError(guard.error, 400);
-  }
-
-  const adminClient = createAdminClient();
-  const { error: transferError } = await adminClient.rpc(
-    "transfer_organisation_ownership",
-    {
-      p_organisation_id: organisationId,
-      p_current_owner_member_id: actorMember.id,
-      p_target_member_id: targetMember.id,
-    },
-  );
-
-  if (transferError) {
-    return jsonError(transferError.message, 500);
-  }
-
-  const updatedTargetMember = await loadOrganisationMember(
-    organisationId,
-    memberId,
-  );
-
-  if (!updatedTargetMember) {
-    return jsonError("Failed to load updated member", 500);
-  }
-
-  return Response.json(updatedTargetMember);
 }

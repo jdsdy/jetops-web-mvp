@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { withApiLogging } from "@/lib/api-logging";
 import {
   getListedOrganisationMembers,
   requireOrgAdmin,
@@ -17,33 +18,39 @@ function jsonError(message: string, status: number) {
  * Lists active and disabled organisation members for the current admin.
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ organisationId: string }> },
 ) {
-  const { organisationId } = await context.params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  return withApiLogging(request, async (logContext) => {
+    const { organisationId } = await context.params;
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    return jsonError("Unauthorized", 401);
-  }
+    if (!user) {
+      return jsonError("Unauthorized", 401);
+    }
 
-  const { membership, error: adminError } = await requireOrgAdmin(
-    supabase,
-    user.id,
-    organisationId,
-  );
+    logContext.set({ userId: user.id });
 
-  if (adminError || !membership) {
-    return jsonError("Forbidden", 403);
-  }
+    const { membership, error: adminError } = await requireOrgAdmin(
+      supabase,
+      user.id,
+      organisationId,
+    );
 
-  const members = await getListedOrganisationMembers(
-    supabase,
-    membership.organisations.id,
-  );
+    if (adminError || !membership) {
+      return jsonError("Forbidden", 403);
+    }
 
-  return Response.json(members);
+    logContext.set({ organisationId: membership.organisations.id });
+
+    const members = await getListedOrganisationMembers(
+      supabase,
+      membership.organisations.id,
+    );
+
+    return Response.json(members);
+  });
 }

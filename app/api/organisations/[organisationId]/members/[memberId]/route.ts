@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { withApiLogging } from "@/lib/api-logging";
 import {
   assertMemberChangeAllowed,
   assertMemberEnableAllowed,
@@ -100,64 +101,70 @@ async function applyMemberEnableSideEffects(userId: string) {
  * Updates an organisation members data (status, role, is_admin).
  */
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ organisationId: string; memberId: string }> },
 ) {
-  const { organisationId, memberId } = await context.params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  return withApiLogging(request, async (logContext) => {
+    const { organisationId, memberId } = await context.params;
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    return jsonError("Unauthorized", 401);
-  }
+    if (!user) {
+      return jsonError("Unauthorized", 401);
+    }
 
-  const { membership, error: adminError } = await requireOrgAdmin(
-    supabase,
-    user.id,
-    organisationId,
-  );
+    logContext.set({ userId: user.id });
 
-  if (adminError || !membership) {
-    return jsonError("Forbidden", 403);
-  }
+    const { membership, error: adminError } = await requireOrgAdmin(
+      supabase,
+      user.id,
+      organisationId,
+    );
 
-  const targetMember = await loadOrganisationMember(
-    membership.organisations.id,
-    memberId,
-  );
+    if (adminError || !membership) {
+      return jsonError("Forbidden", 403);
+    }
 
-  if (!targetMember) {
-    return jsonError("Member not found", 404);
-  }
+    logContext.set({ organisationId: membership.organisations.id });
 
-  const guard = assertMemberEnableAllowed({ targetMember });
+    const targetMember = await loadOrganisationMember(
+      membership.organisations.id,
+      memberId,
+    );
 
-  if (!guard.allowed) {
-    return jsonError(guard.error, 400);
-  }
+    if (!targetMember) {
+      return jsonError("Member not found", 404);
+    }
 
-  const adminClient = createAdminClient();
-  const { data: updatedMember, error: updateError } = await adminClient
-    .from("organisation_members")
-    .update({ status: "active" })
-    .eq("id", memberId)
-    .eq("organisation_id", membership.organisations.id)
-    .select(MEMBER_SELECT)
-    .single();
+    const guard = assertMemberEnableAllowed({ targetMember });
 
-  if (updateError || !updatedMember) {
-    return jsonError(updateError?.message ?? "Failed to enable member", 500);
-  }
+    if (!guard.allowed) {
+      return jsonError(guard.error, 400);
+    }
 
-  const restoreError = await applyMemberEnableSideEffects(updatedMember.user_id);
+    const adminClient = createAdminClient();
+    const { data: updatedMember, error: updateError } = await adminClient
+      .from("organisation_members")
+      .update({ status: "active" })
+      .eq("id", memberId)
+      .eq("organisation_id", membership.organisations.id)
+      .select(MEMBER_SELECT)
+      .single();
 
-  if (restoreError) {
-    return jsonError(restoreError, 500);
-  }
+    if (updateError || !updatedMember) {
+      return jsonError(updateError?.message ?? "Failed to enable member", 500);
+    }
 
-  return Response.json(updatedMember);
+    const restoreError = await applyMemberEnableSideEffects(updatedMember.user_id);
+
+    if (restoreError) {
+      return jsonError(restoreError, 500);
+    }
+
+    return Response.json(updatedMember);
+  });
 }
 
 /**
@@ -167,153 +174,165 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ organisationId: string; memberId: string }> },
 ) {
-  const { organisationId, memberId } = await context.params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  return withApiLogging(request, async (logContext) => {
+    const { organisationId, memberId } = await context.params;
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    return jsonError("Unauthorized", 401);
-  }
+    if (!user) {
+      return jsonError("Unauthorized", 401);
+    }
 
-  const { membership, error: adminError } = await requireOrgAdmin(
-    supabase,
-    user.id,
-    organisationId,
-  );
+    logContext.set({ userId: user.id });
 
-  if (adminError || !membership) {
-    return jsonError("Forbidden", 403);
-  }
-
-  let body: Record<string, unknown>;
-
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return jsonError("Invalid request body", 400);
-  }
-
-  const validation = validateMemberUpdatePayload(body);
-
-  if (!validation.valid) {
-    return jsonError(validation.error, 400);
-  }
-
-  const targetMember = await loadOrganisationMember(
-    membership.organisations.id,
-    memberId,
-  );
-
-  if (!targetMember) {
-    return jsonError("Member not found", 404);
-  }
-
-  const activeAdminCount = await countActiveAdmins(membership.organisations.id);
-  const guard = assertMemberChangeAllowed({
-    actorUserId: user.id,
-    targetMember,
-    activeAdminCount,
-    patch: validation.patch,
-  });
-
-  if (!guard.allowed) {
-    return jsonError(guard.error, 400);
-  }
-
-  const adminClient = createAdminClient();
-  const { data: updatedMember, error: updateError } = await adminClient
-    .from("organisation_members")
-    .update(validation.patch)
-    .eq("id", memberId)
-    .eq("organisation_id", membership.organisations.id)
-    .select(MEMBER_SELECT)
-    .single();
-
-  if (updateError || !updatedMember) {
-    return jsonError(updateError?.message ?? "Failed to update member", 500);
-  }
-
-  if (validation.patch.status === "disabled") {
-    const revokeError = await applyMemberDeactivationSideEffects(
-      updatedMember.user_id,
+    const { membership, error: adminError } = await requireOrgAdmin(
+      supabase,
+      user.id,
+      organisationId,
     );
 
-    if (revokeError) {
-      return jsonError(revokeError, 500);
+    if (adminError || !membership) {
+      return jsonError("Forbidden", 403);
     }
-  }
 
-  return Response.json(updatedMember);
+    logContext.set({ organisationId: membership.organisations.id });
+
+    let body: Record<string, unknown>;
+
+    try {
+      body = (await request.json()) as Record<string, unknown>;
+    } catch {
+      return jsonError("Invalid request body", 400);
+    }
+
+    const validation = validateMemberUpdatePayload(body);
+
+    if (!validation.valid) {
+      return jsonError(validation.error, 400);
+    }
+
+    const targetMember = await loadOrganisationMember(
+      membership.organisations.id,
+      memberId,
+    );
+
+    if (!targetMember) {
+      return jsonError("Member not found", 404);
+    }
+
+    const activeAdminCount = await countActiveAdmins(membership.organisations.id);
+    const guard = assertMemberChangeAllowed({
+      actorUserId: user.id,
+      targetMember,
+      activeAdminCount,
+      patch: validation.patch,
+    });
+
+    if (!guard.allowed) {
+      return jsonError(guard.error, 400);
+    }
+
+    const adminClient = createAdminClient();
+    const { data: updatedMember, error: updateError } = await adminClient
+      .from("organisation_members")
+      .update(validation.patch)
+      .eq("id", memberId)
+      .eq("organisation_id", membership.organisations.id)
+      .select(MEMBER_SELECT)
+      .single();
+
+    if (updateError || !updatedMember) {
+      return jsonError(updateError?.message ?? "Failed to update member", 500);
+    }
+
+    if (validation.patch.status === "disabled") {
+      const revokeError = await applyMemberDeactivationSideEffects(
+        updatedMember.user_id,
+      );
+
+      if (revokeError) {
+        return jsonError(revokeError, 500);
+      }
+    }
+
+    return Response.json(updatedMember);
+  });
 }
 
 /**
  * Deactivates an organisation member by setting status to disabled.
  */
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ organisationId: string; memberId: string }> },
 ) {
-  const { organisationId, memberId } = await context.params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  return withApiLogging(request, async (logContext) => {
+    const { organisationId, memberId } = await context.params;
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    return jsonError("Unauthorized", 401);
-  }
+    if (!user) {
+      return jsonError("Unauthorized", 401);
+    }
 
-  const { membership, error: adminError } = await requireOrgAdmin(
-    supabase,
-    user.id,
-    organisationId,
-  );
+    logContext.set({ userId: user.id });
 
-  if (adminError || !membership) {
-    return jsonError("Forbidden", 403);
-  }
+    const { membership, error: adminError } = await requireOrgAdmin(
+      supabase,
+      user.id,
+      organisationId,
+    );
 
-  const targetMember = await loadOrganisationMember(
-    membership.organisations.id,
-    memberId,
-  );
+    if (adminError || !membership) {
+      return jsonError("Forbidden", 403);
+    }
 
-  if (!targetMember) {
-    return jsonError("Member not found", 404);
-  }
+    logContext.set({ organisationId: membership.organisations.id });
 
-  const activeAdminCount = await countActiveAdmins(membership.organisations.id);
-  const guard = assertMemberChangeAllowed({
-    actorUserId: user.id,
-    targetMember,
-    activeAdminCount,
-    patch: { status: "disabled" },
+    const targetMember = await loadOrganisationMember(
+      membership.organisations.id,
+      memberId,
+    );
+
+    if (!targetMember) {
+      return jsonError("Member not found", 404);
+    }
+
+    const activeAdminCount = await countActiveAdmins(membership.organisations.id);
+    const guard = assertMemberChangeAllowed({
+      actorUserId: user.id,
+      targetMember,
+      activeAdminCount,
+      patch: { status: "disabled" },
+    });
+
+    if (!guard.allowed) {
+      return jsonError(guard.error, 400);
+    }
+
+    const adminClient = createAdminClient();
+    const { data: updatedMember, error: updateError } = await adminClient
+      .from("organisation_members")
+      .update({ status: "disabled" })
+      .eq("id", memberId)
+      .eq("organisation_id", membership.organisations.id)
+      .select(MEMBER_SELECT)
+      .single();
+
+    if (updateError || !updatedMember) {
+      return jsonError(updateError?.message ?? "Failed to deactivate member", 500);
+    }
+
+    const revokeError = await applyMemberDeactivationSideEffects(updatedMember.user_id);
+
+    if (revokeError) {
+      return jsonError(revokeError, 500);
+    }
+
+    return Response.json(updatedMember);
   });
-
-  if (!guard.allowed) {
-    return jsonError(guard.error, 400);
-  }
-
-  const adminClient = createAdminClient();
-  const { data: updatedMember, error: updateError } = await adminClient
-    .from("organisation_members")
-    .update({ status: "disabled" })
-    .eq("id", memberId)
-    .eq("organisation_id", membership.organisations.id)
-    .select(MEMBER_SELECT)
-    .single();
-
-  if (updateError || !updatedMember) {
-    return jsonError(updateError?.message ?? "Failed to deactivate member", 500);
-  }
-
-  const revokeError = await applyMemberDeactivationSideEffects(updatedMember.user_id);
-
-  if (revokeError) {
-    return jsonError(revokeError, 500);
-  }
-
-  return Response.json(updatedMember);
 }

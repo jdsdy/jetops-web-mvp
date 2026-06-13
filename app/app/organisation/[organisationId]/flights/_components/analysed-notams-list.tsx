@@ -7,6 +7,7 @@ import {
   formatNotamCategoryLabel,
 } from "@/app/app/organisation/[organisationId]/flights/_components/notam-category-pill";
 import { NotamDetail } from "@/app/app/organisation/[organisationId]/flights/_components/notam-detail";
+import { NotamFeedbackForm } from "@/app/app/organisation/[organisationId]/flights/_components/notam-feedback-form";
 import { NotamRowChevron } from "@/app/app/organisation/[organisationId]/flights/_components/notam-row-chevron";
 import {
   portalCardClassName,
@@ -24,6 +25,9 @@ import type {
 } from "@/lib/flights";
 
 type AnalysedNotamsListProps = {
+  organisationId: string;
+  flightId: string;
+  flightPlanId: string;
   groups: AnalysedNotamCategoryGroup[];
   pendingCount?: number;
   failedNotams?: AnalysedNotam[];
@@ -33,6 +37,7 @@ type AnalysedNotamsListProps = {
 type NotamTableRow = {
   rowKey: string;
   notamId: string;
+  analysedNotamId?: number;
   categoryKey: string;
   categoryNumber?: number;
   categoryLabel: string;
@@ -57,6 +62,7 @@ function buildNotamTableRows(
     group.notams.map((notam) => ({
       rowKey: `classified-${notam.id}`,
       notamId: notam.raw_notam.notam_id,
+      analysedNotamId: notam.id,
       categoryKey: String(group.category),
       categoryNumber: group.category,
       categoryLabel: formatNotamCategoryLabel(group.category),
@@ -71,6 +77,7 @@ function buildNotamTableRows(
   const failedRows = failedNotams.map((notam) => ({
     rowKey: `failed-${notam.id}`,
     notamId: notam.raw_notam.notam_id,
+    analysedNotamId: notam.id,
     categoryKey: "failed",
     categoryLabel: "Failed",
     categoryVariant: "failed" as const,
@@ -149,6 +156,9 @@ function toggleExpandedRowKey(
  * Expandable NOTAM table with category filtering.
  */
 export function AnalysedNotamsList({
+  organisationId,
+  flightId,
+  flightPlanId,
   groups,
   pendingCount = 0,
   failedNotams = [],
@@ -301,11 +311,21 @@ export function AnalysedNotamsList({
                     {isExpanded ? (
                       <tr className="bg-neutral-50">
                         <td colSpan={4} className="px-4 py-4">
-                          <NotamDetail
-                            notam={row.detailNotam}
-                            summary={row.detailSummary}
-                            showFailedMessage={row.showFailedMessage}
-                          />
+                          <div className="space-y-4">
+                            <NotamDetail
+                              notam={row.detailNotam}
+                              summary={row.detailSummary}
+                              showFailedMessage={row.showFailedMessage}
+                            />
+                            {row.analysedNotamId ? (
+                              <NotamFeedbackForm
+                                organisationId={organisationId}
+                                flightId={flightId}
+                                flightPlanId={flightPlanId}
+                                analysedNotamId={row.analysedNotamId}
+                              />
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     ) : null}

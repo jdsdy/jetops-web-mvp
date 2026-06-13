@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { OrganisationSetupForm } from "@/app/app/organisation/setup/_components/organisation-setup-form";
+import { SimpleFormPage } from "@/components/simple-form-page";
 import {
   getActiveMembership,
   getOrganisationRedirect,
@@ -24,8 +25,8 @@ export default async function OrganisationSetupPage() {
   }
 
   return (
-    <main>
+    <SimpleFormPage>
       <OrganisationSetupForm />
-    </main>
+    </SimpleFormPage>
   );
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { withApiLogging } from "@/lib/api-logging";
 import { getJetOpsApiKey, getJetOpsApiUrl } from "@/lib/env";
 import {
   FLIGHT_PLAN_BUCKET,
@@ -104,27 +105,32 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ organisationId: string }> },
 ) {
-  const { organisationId } = await context.params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  return withApiLogging(request, async (logContext) => {
+    const { organisationId } = await context.params;
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    return jsonError("Unauthorized", 401);
-  }
+    if (!user) {
+      return jsonError("Unauthorized", 401);
+    }
 
-  const { membership, error: memberError } = await requireActiveOrganisationMember(
-    supabase,
-    user.id,
-    organisationId,
-  );
+    logContext.set({ userId: user.id });
 
-  if (memberError || !membership) {
-    return jsonError("Forbidden", 403);
-  }
+    const { membership, error: memberError } = await requireActiveOrganisationMember(
+      supabase,
+      user.id,
+      organisationId,
+    );
 
-  let formData: FormData;
+    if (memberError || !membership) {
+      return jsonError("Forbidden", 403);
+    }
+
+    logContext.set({ organisationId: membership.organisations.id });
+
+    let formData: FormData;
 
   try {
     formData = await request.formData();
@@ -311,4 +317,5 @@ export async function POST(
     },
     { status: 201 },
   );
+  });
 }

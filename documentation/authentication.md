@@ -29,7 +29,7 @@ The Jet Ops MVP project URL is `https://wohclkrdcyykdjqzczgy.supabase.co`.
 
 1. User opens `/auth` and switches to **Create an account**.
 2. User submits email, password, signup code, and account type (`organisation` or `personal`).
-3. `signUp` calls `GET {JETOPS_API_URL}/v1/signup` with `X-API-KEY` and a JSON body `{ "code": "<signup_code>" }`. A `400` response blocks signup and shows the API error message; `200` continues.
+3. `signUp` calls `POST {JETOPS_API_URL}/v1/signup` with `X-API-KEY` and a JSON body `{ "code": "<signup_code>" }`. A `400` response blocks signup and shows the API error message; `200` continues.
 4. `signUp` stores `account_type` in `raw_user_meta_data`.
 5. A database trigger (`handle_new_user`) creates a row in `public.profiles`.
 6. Supabase sends a confirmation email redirecting to `/auth`.
@@ -37,6 +37,10 @@ The Jet Ops MVP project URL is `https://wohclkrdcyykdjqzczgy.supabase.co`.
 ## Auth page UI
 
 `/auth` reuses the landing header and footer and presents a centred form card on `bg-neutral-50`. Styling uses the shared theme tokens from `app/globals.css` (`aviation-blue`, `aviation-navy`, `aviation-slate`). Forms prioritise readable labels, clear alerts, and minimal decoration.
+
+## Simple form pages
+
+`/auth/accept-invite`, `/onboarding`, and `/app/organisation/setup` use the same centred card layout and field styling as `/auth`, without the landing header or footer. Shared components: `components/simple-form-page.tsx`, `components/simple-form-card.tsx`, `components/simple-form-styles.ts`.
 
 ## Login flow
 

@@ -111,11 +111,12 @@ export function UserManagement({
 
   async function handleInviteSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setInvitePending(true);
     setError(null);
     setMessage(null);
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const response = await fetch(`/api/organisations/${organisationId}/invites`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -136,9 +137,9 @@ export function UserManagement({
     }
 
     setMessage(`Invite sent to ${result.email ?? "the user"}.`);
-    event.currentTarget.reset();
     setInvitePending(false);
     setInviteOpen(false);
+    form.reset();
     await loadData();
   }
 

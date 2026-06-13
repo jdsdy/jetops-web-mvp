@@ -381,6 +381,9 @@ export function FlightExtractionDetailsSection({
 
       {showAnalysedNotams ? (
         <AnalysedNotamsList
+          organisationId={organisationId}
+          flightId={flightId}
+          flightPlanId={flightPlanId}
           groups={analysedNotamGroups}
           pendingCount={pendingAnalysedNotamCount}
           failedNotams={failedNotams}

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { withApiLogging } from "@/lib/api-logging";
 import {
   FLEET_INSERT_SELECT,
   validateFleetAircraftUpdatePayload,
@@ -45,115 +46,127 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ organisationId: string; aircraftId: string }> },
 ) {
-  const { organisationId, aircraftId } = await context.params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  return withApiLogging(request, async (logContext) => {
+    const { organisationId, aircraftId } = await context.params;
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    return jsonError("Unauthorized", 401);
-  }
+    if (!user) {
+      return jsonError("Unauthorized", 401);
+    }
 
-  const { membership, error: adminError } = await requireOrgAdmin(
-    supabase,
-    user.id,
-    organisationId,
-  );
+    logContext.set({ userId: user.id });
 
-  if (adminError || !membership) {
-    return jsonError("Forbidden", 403);
-  }
+    const { membership, error: adminError } = await requireOrgAdmin(
+      supabase,
+      user.id,
+      organisationId,
+    );
 
-  let body: Record<string, unknown>;
+    if (adminError || !membership) {
+      return jsonError("Forbidden", 403);
+    }
 
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return jsonError("Invalid request body", 400);
-  }
+    logContext.set({ organisationId: membership.organisations.id });
 
-  const validation = validateFleetAircraftUpdatePayload(body);
+    let body: Record<string, unknown>;
 
-  if (!validation.valid) {
-    return jsonError(validation.error, 400);
-  }
+    try {
+      body = (await request.json()) as Record<string, unknown>;
+    } catch {
+      return jsonError("Invalid request body", 400);
+    }
 
-  const existingAircraft = await loadOrganisationFleetAircraft(
-    membership.organisations.id,
-    aircraftId,
-  );
+    const validation = validateFleetAircraftUpdatePayload(body);
 
-  if (!existingAircraft) {
-    return jsonError("Aircraft not found", 404);
-  }
+    if (!validation.valid) {
+      return jsonError(validation.error, 400);
+    }
 
-  const adminClient = createAdminClient();
-  const { data: updatedAircraft, error: updateError } = await adminClient
-    .from("fleet_aircraft")
-    .update({
-      tail_number: validation.payload.tail_number,
-      seats: validation.payload.seats,
-      rnav_equipped: validation.payload.rnav_equipped,
-    })
-    .eq("id", aircraftId)
-    .eq("organisation_id", membership.organisations.id)
-    .select(FLEET_INSERT_SELECT)
-    .single();
+    const existingAircraft = await loadOrganisationFleetAircraft(
+      membership.organisations.id,
+      aircraftId,
+    );
 
-  if (updateError || !updatedAircraft) {
-    return jsonError(updateError?.message ?? "Failed to update aircraft", 500);
-  }
+    if (!existingAircraft) {
+      return jsonError("Aircraft not found", 404);
+    }
 
-  return Response.json(updatedAircraft);
+    const adminClient = createAdminClient();
+    const { data: updatedAircraft, error: updateError } = await adminClient
+      .from("fleet_aircraft")
+      .update({
+        tail_number: validation.payload.tail_number,
+        seats: validation.payload.seats,
+        rnav_equipped: validation.payload.rnav_equipped,
+      })
+      .eq("id", aircraftId)
+      .eq("organisation_id", membership.organisations.id)
+      .select(FLEET_INSERT_SELECT)
+      .single();
+
+    if (updateError || !updatedAircraft) {
+      return jsonError(updateError?.message ?? "Failed to update aircraft", 500);
+    }
+
+    return Response.json(updatedAircraft);
+  });
 }
 
 /**
  * Deletes a fleet aircraft row for an organisation admin.
  */
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ organisationId: string; aircraftId: string }> },
 ) {
-  const { organisationId, aircraftId } = await context.params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  return withApiLogging(request, async (logContext) => {
+    const { organisationId, aircraftId } = await context.params;
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    return jsonError("Unauthorized", 401);
-  }
+    if (!user) {
+      return jsonError("Unauthorized", 401);
+    }
 
-  const { membership, error: adminError } = await requireOrgAdmin(
-    supabase,
-    user.id,
-    organisationId,
-  );
+    logContext.set({ userId: user.id });
 
-  if (adminError || !membership) {
-    return jsonError("Forbidden", 403);
-  }
+    const { membership, error: adminError } = await requireOrgAdmin(
+      supabase,
+      user.id,
+      organisationId,
+    );
 
-  const existingAircraft = await loadOrganisationFleetAircraft(
-    membership.organisations.id,
-    aircraftId,
-  );
+    if (adminError || !membership) {
+      return jsonError("Forbidden", 403);
+    }
 
-  if (!existingAircraft) {
-    return jsonError("Aircraft not found", 404);
-  }
+    logContext.set({ organisationId: membership.organisations.id });
 
-  const adminClient = createAdminClient();
-  const { error: deleteError } = await adminClient
-    .from("fleet_aircraft")
-    .delete()
-    .eq("id", aircraftId)
-    .eq("organisation_id", membership.organisations.id);
+    const existingAircraft = await loadOrganisationFleetAircraft(
+      membership.organisations.id,
+      aircraftId,
+    );
 
-  if (deleteError) {
-    return jsonError(deleteError.message, 500);
-  }
+    if (!existingAircraft) {
+      return jsonError("Aircraft not found", 404);
+    }
 
-  return new Response(null, { status: 204 });
+    const adminClient = createAdminClient();
+    const { error: deleteError } = await adminClient
+      .from("fleet_aircraft")
+      .delete()
+      .eq("id", aircraftId)
+      .eq("organisation_id", membership.organisations.id);
+
+    if (deleteError) {
+      return jsonError(deleteError.message, 500);
+    }
+
+    return new Response(null, { status: 204 });
+  });
 }

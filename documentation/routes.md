@@ -8,7 +8,7 @@
 | `/app/callback` | Yes (organisation) | Resolves membership; signs out disabled users |
 | `/app/organisation/setup` | Yes (organisation) | Create organisation form |
 | `/auth/accept-invite` | No (until token verified) | Invite acceptance and password setup |
-| `/app/personal` | Yes (personal) | Personal app shell |
+| `/app/personal` | Yes (personal) | Unavailable notice and sign out |
 | `/app/organisation` | Yes (organisation) | Redirects to `/app/organisation/{organisationId}` for active members |
 | `/app/organisation/{organisationId}` | Yes (organisation) | Organisation CRM home: members, fleet, flights |
 | `/app/organisation/{organisationId}/flights` | Yes (organisation) | Flight analysis status page (`?id=` and `?jobId=` required) |
@@ -61,6 +61,7 @@ Organisation management APIs live under `/api/organisations/{organisationId}/`. 
 | `GET` | `/api/organisations/{organisationId}/flights/{flightId}` | Poll analysis job status (`?jobId=`) |
 | `PATCH` | `/api/organisations/{organisationId}/flights/{flightId}` | Update extracted flight details while job is `awaiting_confirmation` |
 | `POST` | `/api/organisations/{organisationId}/flights/{flightId}/analysis` | Trigger downstream analysis after confirmation |
+| `POST` | `/api/organisations/{organisationId}/flights/{flightId}/notam-feedback` | Submit feedback for an analysed NOTAM (active member) |
 | `PATCH` | `/api/organisations/{organisationId}/fleet/{aircraftId}` | Update fleet aircraft (admin) |
 | `DELETE` | `/api/organisations/{organisationId}/fleet/{aircraftId}` | Delete fleet aircraft (admin) |
 | `GET` | `/api/organisations/{organisationId}/members` | List active and disabled members (admin) |
@@ -72,4 +73,4 @@ Organisation management APIs live under `/api/organisations/{organisationId}/`. 
 | `POST` | `/api/organisations/{organisationId}/invites` | Send invite |
 | `DELETE` | `/api/organisations/{organisationId}/invites/{inviteId}` | Cancel invite |
 
-See [organisation-members.md](./organisation-members.md), [organisation-invites.md](./organisation-invites.md), [fleet.md](./fleet.md), and [flights.md](./flights.md).
+See [organisation-members.md](./organisation-members.md), [organisation-invites.md](./organisation-invites.md), [fleet.md](./fleet.md), [flights.md](./flights.md), and [api-logging.md](./api-logging.md).

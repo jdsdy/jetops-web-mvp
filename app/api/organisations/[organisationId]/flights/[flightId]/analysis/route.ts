@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { withApiLogging } from "@/lib/api-logging";
 import { getJetOpsApiKey, getJetOpsApiUrl } from "@/lib/env";
 import {
   buildFlightAnalysisRequestBody,
@@ -25,27 +26,32 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ organisationId: string; flightId: string }> },
 ) {
-  const { organisationId, flightId } = await context.params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  return withApiLogging(request, async (logContext) => {
+    const { organisationId, flightId } = await context.params;
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    return jsonError("Unauthorized", 401);
-  }
+    if (!user) {
+      return jsonError("Unauthorized", 401);
+    }
 
-  const { membership, error: memberError } = await requireActiveOrganisationMember(
-    supabase,
-    user.id,
-    organisationId,
-  );
+    logContext.set({ userId: user.id });
 
-  if (memberError || !membership) {
-    return jsonError("Forbidden", 403);
-  }
+    const { membership, error: memberError } = await requireActiveOrganisationMember(
+      supabase,
+      user.id,
+      organisationId,
+    );
 
-  let body: unknown;
+    if (memberError || !membership) {
+      return jsonError("Forbidden", 403);
+    }
+
+    logContext.set({ organisationId: membership.organisations.id });
+
+    let body: unknown;
 
   try {
     body = await request.json();
@@ -151,5 +157,6 @@ export async function POST(
     return jsonError("Analysis service did not begin processing", 502);
   }
 
-  return Response.json(externalBody);
+    return Response.json(externalBody);
+  });
 }

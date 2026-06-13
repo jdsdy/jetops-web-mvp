@@ -3,6 +3,14 @@
 import { useEffect, useState } from "react";
 
 import { acceptInvitation } from "@/app/actions/organisation";
+import { SimpleFormCard } from "@/components/simple-form-card";
+import {
+  simpleFormAlertErrorClassName,
+  simpleFormFieldClassName,
+  simpleFormFieldGroupClassName,
+  simpleFormLabelClassName,
+  simpleFormSubmitClassName,
+} from "@/components/simple-form-styles";
 import {
   hasInviteAuthParams,
   parseInviteUrl,
@@ -167,51 +175,86 @@ export function AcceptInviteForm() {
   }
 
   if (status === "loading") {
-    return <p>Verifying invite...</p>;
+    return (
+      <SimpleFormCard
+        eyebrow="Accept invite"
+        title="Verifying your invite"
+        titleAccent="link."
+        description="Please wait while we confirm your invitation."
+      >
+        <p className="mt-8 text-sm text-aviation-slate">Verifying invite...</p>
+      </SimpleFormCard>
+    );
   }
 
   if (status === "error") {
-    return <p role="alert">{errorMessage ?? INVITATION_INVALID_MESSAGE}</p>;
+    return (
+      <SimpleFormCard
+        eyebrow="Accept invite"
+        title="Unable to continue"
+        titleAccent="with this invite."
+      >
+        <p role="alert" className={`mt-8 ${simpleFormAlertErrorClassName}`}>
+          {errorMessage ?? INVITATION_INVALID_MESSAGE}
+        </p>
+      </SimpleFormCard>
+    );
   }
 
   return (
-    <div>
-      <h1>Accept invite</h1>
-      <p>Create a password for your account.</p>
-
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="password">Password</label>
+    <SimpleFormCard
+      title="Set your password"
+      description="Create a password for your organisation account."
+    >
+      <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+        <div className={simpleFormFieldGroupClassName}>
+          <label htmlFor="password" className={simpleFormLabelClassName}>
+            Password
+          </label>
           <input
             id="password"
             name="password"
             type="password"
+            autoComplete="new-password"
             required
             minLength={8}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
+            className={simpleFormFieldClassName}
           />
         </div>
 
-        <div>
-          <label htmlFor="confirm_password">Confirm password</label>
+        <div className={simpleFormFieldGroupClassName}>
+          <label htmlFor="confirm_password" className={simpleFormLabelClassName}>
+            Confirm password
+          </label>
           <input
             id="confirm_password"
             name="confirm_password"
             type="password"
+            autoComplete="new-password"
             required
             minLength={8}
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
+            className={simpleFormFieldClassName}
           />
         </div>
 
-        <button type="submit" disabled={submitting}>
-          Continue
+        <button
+          type="submit"
+          disabled={submitting}
+          className={simpleFormSubmitClassName}
+        >
+          {submitting ? "Continuing..." : "Continue"}
         </button>
       </form>
 
-      {errorMessage ? <p role="alert">{errorMessage}</p> : null}
-    </div>
+      {errorMessage ? (
+        <p role="alert" className={`mt-4 ${simpleFormAlertErrorClassName}`}>
+          {errorMessage}
+        </p>
+      ) : null}
+    </SimpleFormCard>
   );
 }

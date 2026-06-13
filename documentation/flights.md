@@ -187,6 +187,40 @@ Response: `200`
 | 502 | External analysis service error or unexpected response |
 | 500 | Missing API key |
 
+### `POST /api/organisations/{organisationId}/flights/{flightId}/notam-feedback`
+
+Stores feedback for an analysed NOTAM on the current flight plan.
+
+Auth: active organisation member.
+
+Request: `application/json`
+
+| Field | Type |
+| --- | --- |
+| `analysed_notam_id` | integer (`analysed_notams.id`) |
+| `flight_plan_id` | uuid (must match the analysed NOTAM and flight) |
+| `reasons` | string array — one or more of `extraction`, `classification`, `summary` |
+| `comment` | string (required) |
+
+Selected reasons are stored as a CSV in `notam_feedback.reason`.
+
+Response: `201`
+
+```json
+{
+  "id": 1,
+  "created_at": "2026-06-05T12:00:00.000Z"
+}
+```
+
+| Status | Meaning |
+| --- | --- |
+| 400 | Invalid payload |
+| 401 | No authenticated session |
+| 403 | User is not an active member |
+| 404 | Flight, plan, or analysed NOTAM not found |
+| 500 | Database error |
+
 ## Analysed NOTAMs
 
 During analysis the external service writes rows to `analysed_notams` (linked to `raw_notams` via `notam_id`). Job status drives what the flights page shows:
@@ -224,7 +258,7 @@ Uses the organisation portal shell (`OrganisationAppShell`) via `flights/layout.
 2. **Extraction progress** — shown while `processing_extraction`; step list with elapsed time
 3. **Flight details** — extracted fields in a portal card; editable at `awaiting_confirmation` with **Save changes** and **Confirm & analyse**
 4. **Analysis progress** — shown while `processing_analysis` or `retrying`; step list, elapsed time, NOTAM classification counts, and a note that analysis typically takes about 2 minutes
-5. **NOTAMs** — expandable table (NOTAM ID, colour-coded category pill, truncated summary, chevron); multiple rows can be expanded; changing category filter collapses all rows; expanded detail shows Summary, Title, Q, A, B+C, F+G, D, E; category pills: 1 red, 2 orange, 3 blue
+5. **NOTAMs** — expandable table (NOTAM ID, colour-coded category pill, truncated summary, chevron); multiple rows can be expanded; changing category filter collapses all rows; expanded detail shows Summary, Title, Q, A, B+C, F+G, D, E; category pills: 1 red, 2 orange, 3 blue; classified and failed rows include a feedback form (multiselect reason + required comment)
 
 **Data loading:**
 
@@ -240,4 +274,4 @@ Uses the organisation portal shell (`OrganisationAppShell`) via `flights/layout.
 
 ## Tests
 
-Helpers are covered in `tests/lib/flights.test.ts`.
+Helpers are covered in `tests/lib/flights.test.ts` and `tests/lib/notam-feedback.test.ts`.

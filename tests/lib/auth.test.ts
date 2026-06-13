@@ -312,7 +312,7 @@ describe("validateSignupCode", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith("http://api.test/v1/signup", {
-      method: "GET",
+      method: "POST",
       headers: {
         "X-API-KEY": "test-api-key",
         "Content-Type": "application/json",
