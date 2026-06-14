@@ -2,8 +2,16 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import {
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plane,
+  Road,
+  User,
+  type LucideIcon,
+} from "lucide-react";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { LogoutButton } from "@/components/logout-button";
 
@@ -14,10 +22,19 @@ type OrganisationAppShellProps = {
   children: ReactNode;
 };
 
+type NavItem = {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+};
+
 const navLinkClassName =
-  "block rounded-sm px-3 py-2 text-sm font-medium transition-colors";
+  "flex items-center rounded-sm text-sm font-medium transition-colors";
 const navLinkActiveClassName = "bg-white/10 text-white";
 const navLinkInactiveClassName = "text-neutral-300 hover:bg-white/5 hover:text-white";
+
+const sidebarExpandedClassName = "w-56";
+const sidebarCollapsedClassName = "w-14";
 
 function isNavItemActive(pathname: string, basePath: string, href: string): boolean {
   if (href === basePath) {
@@ -28,7 +45,7 @@ function isNavItemActive(pathname: string, basePath: string, href: string): bool
 }
 
 /**
- * Portal shell with sidebar navigation for organisation app sections.
+ * Portal shell with collapsible sidebar navigation for organisation app sections.
  */
 export function OrganisationAppShell({
   organisationId,
@@ -37,12 +54,13 @@ export function OrganisationAppShell({
   children,
 }: OrganisationAppShellProps) {
   const pathname = usePathname();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const basePath = `/app/organisation/${organisationId}`;
 
-  const navItems = [
-    { label: "Flights", href: basePath },
-    { label: "Fleet", href: `${basePath}/fleet` },
-    { label: "Users", href: `${basePath}/users` },
+  const navItems: NavItem[] = [
+    { label: "Flights", href: basePath, icon: Road },
+    { label: "Fleet", href: `${basePath}/fleet`, icon: Plane },
+    { label: "Users", href: `${basePath}/users`, icon: User },
   ];
 
   const activeNavItem = navItems.find((item) =>
@@ -54,40 +72,89 @@ export function OrganisationAppShell({
 
   return (
     <div className="flex min-h-screen bg-neutral-100">
-      <aside className="flex w-56 shrink-0 flex-col bg-aviation-navy text-white">
-        <div className="border-b border-white/10 px-4 py-5">
-          <Link href={basePath} className="flex items-center gap-3">
+      <aside
+        className={`flex shrink-0 flex-col overflow-hidden bg-aviation-navy text-white transition-[width] duration-300 ease-in-out ${
+          sidebarCollapsed ? sidebarCollapsedClassName : sidebarExpandedClassName
+        }`}
+      >
+        <div
+          className={`border-b border-white/10 pb-4 pt-5 ${
+            sidebarCollapsed ? "px-2" : "px-4"
+          }`}
+        >
+          <Link
+            href={basePath}
+            className={`flex items-center ${
+              sidebarCollapsed ? "justify-center" : "gap-3"
+            }`}
+            title={sidebarCollapsed ? "Jet Operations" : undefined}
+          >
             <Image
               src="/logo_square.png"
               alt=""
               width={32}
               height={32}
-              className="h-8 w-8"
+              className="h-8 w-8 shrink-0"
             />
-            <div className="min-w-0 leading-tight">
+            <div
+              className={`min-w-0 leading-tight transition-opacity duration-300 ${
+                sidebarCollapsed ? "sr-only" : "opacity-100"
+              }`}
+            >
               <p className="truncate text-sm font-bold uppercase tracking-wide">
                 Jet Operations
               </p>
-              <p className="truncate text-xs text-neutral-300">
-                {organisationName}
-              </p>
+              <p className="truncate text-xs text-neutral-300">{organisationName}</p>
             </div>
           </Link>
+
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={`mt-6 flex w-full items-center rounded-sm text-neutral-300 transition-colors hover:bg-white/5 hover:text-white ${
+              sidebarCollapsed ? "justify-center p-2" : "gap-3 px-3 py-2"
+            }`}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="h-5 w-5 shrink-0" aria-hidden />
+            ) : (
+              <>
+                <PanelLeftClose className="h-5 w-5 shrink-0" aria-hidden />
+                <span className="text-sm font-medium">Collapse</span>
+              </>
+            )}
+          </button>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav
+          className={`flex-1 space-y-1 py-4 ${
+            sidebarCollapsed ? "px-2" : "px-3"
+          }`}
+        >
           {navItems.map((item) => {
             const isActive = isNavItemActive(pathname, basePath, item.href);
+            const Icon = item.icon;
 
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                title={sidebarCollapsed ? item.label : undefined}
                 className={`${navLinkClassName} ${
-                  isActive ? navLinkActiveClassName : navLinkInactiveClassName
-                }`}
+                  sidebarCollapsed
+                    ? "justify-center px-2 py-2.5"
+                    : "gap-3 px-3 py-2"
+                } ${isActive ? navLinkActiveClassName : navLinkInactiveClassName}`}
               >
-                {item.label}
+                <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                <span
+                  className={`truncate transition-opacity duration-300 ${
+                    sidebarCollapsed ? "sr-only" : "opacity-100"
+                  }`}
+                >
+                  {item.label}
+                </span>
               </Link>
             );
           })}

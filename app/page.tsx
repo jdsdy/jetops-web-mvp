@@ -12,19 +12,19 @@ const efbPlatforms = [
     name: "ForeFlight",
     logo: "/foreflight.png",
     description:
-      "Export your briefing package as a PDF and upload it directly for NOTAM analysis.",
+      "Full flight context and NOTAM extraction is supported with ForeFlight standard format PDF flight plans.",
   },
   {
     name: "OzRunways",
     logo: "/ozrunways.png",
     description:
-      "Submit OzRunways flight plan PDFs without retyping route or aerodrome details.",
+      "Submit OzRunways flight plan PDFs and specify specific flight details to get accurate NOTAM analysis.",
   },
   {
     name: "NAIPS",
     logo: "/naips.png",
     description:
-      "Use NAIPS-generated flight plan documents as the source for extraction and review.",
+      "Use NAIPS-generated flight plan documents to provide context for NOTAM analysis.",
   },
 ];
 

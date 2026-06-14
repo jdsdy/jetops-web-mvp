@@ -50,9 +50,6 @@ export function AuthForm({ initialError }: AuthFormProps) {
       <h1 className="mt-2 text-2xl leading-tight">
         <span className="font-bold text-neutral-900">
           {isSignup ? "Join Jet Operations" : "Welcome back"}
-        </span>{" "}
-        <span className="font-light text-neutral-400">
-          {isSignup ? "for closed testing." : "to your account."}
         </span>
       </h1>
       <p className="mt-3 text-sm leading-relaxed text-aviation-slate">
