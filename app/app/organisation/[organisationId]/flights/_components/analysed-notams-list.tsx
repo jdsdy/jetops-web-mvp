@@ -300,7 +300,7 @@ export function AnalysedNotamsList({
                         />
                       </td>
                       <td
-                        className={`${portalTdClassName} max-w-md truncate whitespace-nowrap text-aviation-slate`}
+                        className={`${portalTdClassName} max-w-md whitespace-normal text-aviation-slate`}
                       >
                         {row.summary?.trim() ? row.summary : "—"}
                       </td>

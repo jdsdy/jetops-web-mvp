@@ -17,7 +17,6 @@ import {
   isAnalysisRetryingJobStatus,
   isAnalysedNotamClassified,
   isAnalysedNotamFailed,
-  isAnalysedNotamPending,
   isExtractionReadyJobStatus,
   isFlightAnalysisBegunResponse,
   isFlightExtractionEditableJobStatus,

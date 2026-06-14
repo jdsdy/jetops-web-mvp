@@ -88,6 +88,19 @@ Response: `204`
 1. Admin submits invite form on the organisation home page (or `POST` above).
 2. API validates session and admin membership via `requireOrgAdmin`.
 3. API calls `supabaseAdmin.auth.admin.inviteUserByEmail` with user metadata and `redirectTo: /auth/accept-invite`.
+
+   User metadata includes:
+
+   | Field | Value |
+   | --- | --- |
+   | `account_type` | `"organisation"` |
+   | `f_name` | Invitee first name |
+   | `l_initial` | Invitee last initial |
+   | `role` | Invited role |
+   | `organisation_id` | Organisation uuid |
+   | `organisation_slug` | Organisation slug |
+   | `organisation_name` | Organisation display name (for invite email templates) |
+
 4. On success, API calls `create_organisation_invite_records` to insert:
    - `organisation_invitations` (with `expires_at`, default 7 days)
    - `organisation_members` (`status = 'pending'`, `is_admin = false`)

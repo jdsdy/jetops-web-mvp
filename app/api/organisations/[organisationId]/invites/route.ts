@@ -137,6 +137,7 @@ export async function POST(
           role: validation.role,
           organisation_id: membership.organisations.id,
           organisation_slug: membership.organisations.slug,
+          organisation_name: membership.organisations.name,
         },
         redirectTo: `${getSiteUrl()}/auth/accept-invite`,
       });
