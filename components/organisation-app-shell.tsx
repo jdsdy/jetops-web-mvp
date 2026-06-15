@@ -144,17 +144,14 @@ export function OrganisationAppShell({
                 className={`${navLinkClassName} ${
                   sidebarCollapsed
                     ? "justify-center px-2 py-2.5"
-                    : "gap-3 px-3 py-2"
+                    : "px-3 py-2"
                 } ${isActive ? navLinkActiveClassName : navLinkInactiveClassName}`}
               >
-                <Icon className="h-5 w-5 shrink-0" aria-hidden />
-                <span
-                  className={`truncate transition-opacity duration-300 ${
-                    sidebarCollapsed ? "sr-only" : "opacity-100"
-                  }`}
-                >
-                  {item.label}
-                </span>
+                {sidebarCollapsed ? (
+                  <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                ) : (
+                  <span className="truncate">{item.label}</span>
+                )}
               </Link>
             );
           })}

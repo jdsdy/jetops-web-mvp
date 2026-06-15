@@ -41,7 +41,14 @@ export const ICAO_WTC_VALUES = ["L", "M", "H", "J"] as const;
 
 export const AAC_VALUES = ["A", "B", "C", "D", "E"] as const;
 
-export const ADG_VALUES = ["A", "B", "C", "D", "E", "F"] as const;
+export const ADG_VALUES = [
+  "A", 
+  "B", 
+  "C", 
+  "D", 
+  "E", 
+  "F"
+] as const;
 
 export type FaaWeightClass = (typeof FAA_WEIGHT_CLASSES)[number];
 export type IcaoWtc = (typeof ICAO_WTC_VALUES)[number];

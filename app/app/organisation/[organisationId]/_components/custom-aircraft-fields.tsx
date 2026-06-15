@@ -46,6 +46,15 @@ const ICAO_WTC_LABELS: Record<(typeof ICAO_WTC_VALUES)[number], string> = {
   J: "J — Super",
 };
 
+const ADG_LABELS: Record<(typeof ADG_VALUES)[number], string> = {
+  A: "A — (FAA class I)",
+  B: "B — (FAA class II)",
+  C: "C — (FAA class III)",
+  D: "D — (FAA class IV)",
+  E: "E — (FAA class V)",
+  F: "F — (FAA class VI)",
+};
+
 type CustomAircraftFieldsProps = {
   values: CustomAircraftFormValues;
   onChange: (values: CustomAircraftFormValues) => void;
@@ -261,7 +270,7 @@ export function CustomAircraftFields({
           <option value="">Select group</option>
           {ADG_VALUES.map((value) => (
             <option key={value} value={value}>
-              {value}
+              {ADG_LABELS[value]}
             </option>
           ))}
         </select>
