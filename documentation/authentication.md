@@ -22,6 +22,8 @@ The Jet Ops MVP project URL is `https://wohclkrdcyykdjqzczgy.supabase.co`.
 | --- | --- |
 | `/` | Home page with a link to login |
 | `/auth` | Email/password login and signup |
+| `/auth/accept-invite` | Organisation invite link; stores invite cookie then redirects to sign in |
+| `/auth/set-password` | Forced password reset for invited users after first sign-in |
 | `/auth/callback` | Shows a loader while exchanging email confirmation codes for a session |
 | `/onboarding` | Collects first name and last name initial |
 
@@ -44,11 +46,14 @@ The Jet Ops MVP project URL is `https://wohclkrdcyykdjqzczgy.supabase.co`.
 
 ## Login flow
 
-1. User submits email and password on `/auth`.
-2. On success, the server loads `profiles` and redirects:
-   - Incomplete onboarding → `/onboarding`
-   - Organisation → `/app/callback` (membership resolution; disabled users are signed out)
-   - Personal → `/app/personal`
+1. User submits email and password on `/auth` (browser Supabase client).
+2. On success, the client sends the session JWT to `POST /api/invites/consume-cookie`.
+3. If an invite cookie is present and valid, the API accepts the invitation atomically. On definitive failure the client signs the user out and shows an expired-invite message.
+4. On success, the client redirects:
+   - `has_set_password === false` → `/auth/set-password` (invited users)
+   - Otherwise → `/app/callback` for organisation accounts (membership resolution; disabled users are signed out) or the profile-based destination for personal accounts
+
+Invited users set a permanent password on `/auth/set-password`, then continue to `/app/callback`.
 
 ## Logout
 
