@@ -1,10 +1,16 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useActionState, useState } from "react";
 
-import { signInWithPassword, signUp } from "@/app/actions/auth";
+import { signUp } from "@/app/actions/auth";
 import { signInClassName } from "@/components/landing-header";
 import { ACCOUNT_TYPES } from "@/lib/auth";
+import {
+  INVITE_EXPIRED_CONTACT_ADMIN_MESSAGE,
+  INVITE_TRANSIENT_ERROR_MESSAGE,
+} from "@/lib/organisation";
+import { createClient } from "@/lib/supabase/client";
 
 type AuthFormProps = {
   initialError?: string;
@@ -26,21 +32,85 @@ const fieldGroupClassName = "space-y-1";
  * Combined login and signup form for the auth page.
  */
 export function AuthForm({ initialError }: AuthFormProps) {
+  const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
-  const [loginState, loginAction, loginPending] = useActionState(
-    signInWithPassword,
-    initialState,
-  );
+  const [loginError, setLoginError] = useState<string | undefined>(initialError);
+  const [loginPending, setLoginPending] = useState(false);
   const [signupState, signupAction, signupPending] = useActionState(
     signUp,
     initialState,
   );
 
   const isSignup = mode === "signup";
-  const state = isSignup ? signupState : loginState;
-  const action = isSignup ? signupAction : loginAction;
+  const state = signupState;
   const pending = isSignup ? signupPending : loginPending;
-  const alertMessage = initialError ?? state.error;
+  const alertMessage = isSignup ? state.error : loginError;
+
+  async function handleLoginSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoginError(undefined);
+    setLoginPending(true);
+
+    const formData = new FormData(event.currentTarget);
+    const email = String(formData.get("email") ?? "");
+    const password = String(formData.get("password") ?? "");
+
+    const supabase = createClient();
+    const { data: signInData, error: signInError } =
+      await supabase.auth.signInWithPassword({ email, password });
+
+    if (signInError) {
+      setLoginPending(false);
+      setLoginError(signInError.message);
+      return;
+    }
+
+    const accessToken = signInData.session?.access_token;
+
+    if (!accessToken) {
+      setLoginPending(false);
+      setLoginError("Unable to load user session");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/invites/consume-cookie", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ access_token: accessToken }),
+      });
+
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        has_set_password?: boolean;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.ok) {
+        if (response.status === 503) {
+          setLoginError(payload.error ?? INVITE_TRANSIENT_ERROR_MESSAGE);
+          setLoginPending(false);
+          return;
+        }
+
+        await supabase.auth.signOut();
+        setLoginError(payload.error ?? INVITE_EXPIRED_CONTACT_ADMIN_MESSAGE);
+        setLoginPending(false);
+        return;
+      }
+
+      if (payload.has_set_password === false) {
+        router.push("/auth/set-password");
+        return;
+      }
+
+      router.push("/app/callback");
+    } catch {
+      setLoginError(INVITE_TRANSIENT_ERROR_MESSAGE);
+      setLoginPending(false);
+    }
+  }
 
   return (
     <div className="rounded-sm border border-neutral-200 bg-white p-6 shadow-sm sm:p-8">
@@ -58,88 +128,118 @@ export function AuthForm({ initialError }: AuthFormProps) {
           : "Sign in to continue to your organisation or personal workspace."}
       </p>
 
-      <form action={action} className="mt-8 space-y-4">
-        <div className={fieldGroupClassName}>
-          <label htmlFor="email" className={labelClassName}>
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            className={fieldClassName}
-          />
-        </div>
+      {isSignup ? (
+        <form action={signupAction} className="mt-8 space-y-4">
+          <div className={fieldGroupClassName}>
+            <label htmlFor="email" className={labelClassName}>
+              Email
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              className={fieldClassName}
+            />
+          </div>
 
-        <div className={fieldGroupClassName}>
-          <label htmlFor="password" className={labelClassName}>
-            Password
-          </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete={isSignup ? "new-password" : "current-password"}
-            required
-            className={fieldClassName}
-          />
-        </div>
+          <div className={fieldGroupClassName}>
+            <label htmlFor="password" className={labelClassName}>
+              Password
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              required
+              className={fieldClassName}
+            />
+          </div>
 
-        {isSignup ? (
-          <>
-            <div className={fieldGroupClassName}>
-              <label htmlFor="signup_code" className={labelClassName}>
-                Signup code
-              </label>
-              <input
-                id="signup_code"
-                name="signup_code"
-                type="text"
-                autoComplete="off"
-                required
-                className={fieldClassName}
-              />
-              <p className="text-xs text-aviation-slate">
-                Required during the closed testing phase.
-              </p>
-            </div>
+          <div className={fieldGroupClassName}>
+            <label htmlFor="signup_code" className={labelClassName}>
+              Signup code
+            </label>
+            <input
+              id="signup_code"
+              name="signup_code"
+              type="text"
+              autoComplete="off"
+              required
+              className={fieldClassName}
+            />
+            <p className="text-xs text-aviation-slate">
+              Required during the closed testing phase.
+            </p>
+          </div>
 
-            <div className={fieldGroupClassName}>
-              <label htmlFor="account_type" className={labelClassName}>
-                Account type
-              </label>
-              <select
-                id="account_type"
-                name="account_type"
-                required
-                className={fieldClassName}
-              >
-                {ACCOUNT_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </>
-        ) : null}
+          <div className={fieldGroupClassName}>
+            <label htmlFor="account_type" className={labelClassName}>
+              Account type
+            </label>
+            <select
+              id="account_type"
+              name="account_type"
+              required
+              className={fieldClassName}
+            >
+              {ACCOUNT_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <button
-          type="submit"
-          disabled={pending}
-          className={`${signInClassName} w-full disabled:cursor-not-allowed disabled:opacity-60`}
-        >
-          {pending
-            ? isSignup
-              ? "Creating account..."
-              : "Signing in..."
-            : isSignup
-              ? "Create account"
-              : "Sign in"}
-        </button>
-      </form>
+          <button
+            type="submit"
+            disabled={pending}
+            className={`${signInClassName} w-full disabled:cursor-not-allowed disabled:opacity-60`}
+          >
+            {pending ? "Creating account..." : "Create account"}
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={handleLoginSubmit} className="mt-8 space-y-4">
+          <div className={fieldGroupClassName}>
+            <label htmlFor="email" className={labelClassName}>
+              Email
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              className={fieldClassName}
+            />
+          </div>
+
+          <div className={fieldGroupClassName}>
+            <label htmlFor="password" className={labelClassName}>
+              Password
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              className={fieldClassName}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={pending}
+            className={`${signInClassName} w-full disabled:cursor-not-allowed disabled:opacity-60`}
+          >
+            {pending ? "Signing in..." : "Sign in"}
+          </button>
+        </form>
+      )}
 
       {alertMessage ? (
         <p

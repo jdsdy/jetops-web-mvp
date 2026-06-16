@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
+  acceptOrganisationInvitationAtomic,
   assertMemberChangeAllowed,
   assertMemberEnableAllowed,
   assertOwnershipTransferAllowed,
@@ -8,10 +9,13 @@ import {
   getOrganisationRedirect,
   isInvitationAcceptable,
   isOrgAdminMembership,
+  isSupabaseTransientError,
+  normaliseInviteEmail,
   normaliseOrganisationId,
   organisationNameToSlug,
   resolveOrganisationCallbackRedirect,
   validateInvitePayload,
+  validateInvitationForConsume,
   validateMemberUpdatePayload,
   validateOrganisationName,
 } from "@/lib/organisation";
@@ -182,6 +186,110 @@ describe("isInvitationAcceptable", () => {
         now,
       ),
     ).toBe(false);
+  });
+});
+
+describe("normaliseInviteEmail", () => {
+  it("trims and lowercases email addresses", () => {
+    expect(normaliseInviteEmail("  Pilot@Example.COM ")).toBe("pilot@example.com");
+  });
+});
+
+const validConsumeInvitation = {
+  id: "11111111-1111-4111-8111-111111111111",
+  email: "pilot@example.com",
+  invited_user_id: "user-1",
+  organisation_id: "org-1",
+  expires_at: "2027-06-06T12:00:00Z",
+  accepted_at: null,
+};
+
+describe("validateInvitationForConsume", () => {
+  it("accepts a valid invitation for the verified user", () => {
+    expect(
+      validateInvitationForConsume({
+        invitation: validConsumeInvitation,
+        hasPendingMembership: true,
+        verifiedUserId: "user-1",
+        verifiedUserEmail: "pilot@example.com",
+        now,
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects when the invitation email does not match", () => {
+    expect(
+      validateInvitationForConsume({
+        invitation: validConsumeInvitation,
+        hasPendingMembership: true,
+        verifiedUserId: "user-1",
+        verifiedUserEmail: "other@example.com",
+        now,
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects when there is no pending membership", () => {
+    expect(
+      validateInvitationForConsume({
+        invitation: validConsumeInvitation,
+        hasPendingMembership: false,
+        verifiedUserId: "user-1",
+        verifiedUserEmail: "pilot@example.com",
+        now,
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects when the invitation has expired", () => {
+    expect(
+      validateInvitationForConsume({
+        invitation: {
+          ...validConsumeInvitation,
+          expires_at: "2026-06-04T12:00:00Z",
+        },
+        hasPendingMembership: true,
+        verifiedUserId: "user-1",
+        verifiedUserEmail: "pilot@example.com",
+        now,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("acceptOrganisationInvitationAtomic", () => {
+  it("calls the atomic accept RPC", async () => {
+    const rpc = vi.fn().mockResolvedValue({ error: null });
+    const adminClient = { rpc } as never;
+
+    const result = await acceptOrganisationInvitationAtomic(
+      adminClient,
+      "11111111-1111-4111-8111-111111111111",
+      "user-1",
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect(rpc).toHaveBeenCalledWith("accept_organisation_invitation_atomic", {
+      p_invitation_id: "11111111-1111-4111-8111-111111111111",
+      p_user_id: "user-1",
+    });
+  });
+});
+
+describe("isSupabaseTransientError", () => {
+  it("returns true for network-style errors", () => {
+    expect(isSupabaseTransientError({ message: "fetch failed" })).toBe(true);
+    expect(isSupabaseTransientError({ message: "Network timeout" })).toBe(true);
+  });
+
+  it("returns false for definitive validation errors", () => {
+    expect(
+      isSupabaseTransientError({ message: "Invitation is no longer valid" }),
+    ).toBe(false);
+  });
+
+  it("returns false for null errors", () => {
+    expect(isSupabaseTransientError(null)).toBe(false);
   });
 });
 

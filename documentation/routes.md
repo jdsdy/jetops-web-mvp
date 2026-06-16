@@ -7,7 +7,8 @@
 | `/onboarding` | Yes | Name collection step |
 | `/app/callback` | Yes (organisation) | Resolves membership; signs out disabled users |
 | `/app/organisation/setup` | Yes (organisation) | Create organisation form |
-| `/auth/accept-invite` | No (until token verified) | Invite acceptance and password setup |
+| `/auth/accept-invite` | No | Invite link; client calls `POST /api/invites/store-cookie`, then redirects to `/auth` |
+| `/auth/set-password` | Yes | Forced password reset for invited users after first sign-in |
 | `/app/personal` | Yes (personal) | Unavailable notice and sign out |
 | `/app/organisation` | Yes (organisation) | Redirects to `/app/organisation/{organisationId}` for active members |
 | `/app/organisation/{organisationId}` | Yes (organisation) | Organisation CRM home: members, fleet, flights |
@@ -72,5 +73,7 @@ Organisation management APIs live under `/api/organisations/{organisationId}/`. 
 | `GET` | `/api/organisations/{organisationId}/invites` | List pending invites (admin) |
 | `POST` | `/api/organisations/{organisationId}/invites` | Send invite |
 | `DELETE` | `/api/organisations/{organisationId}/invites/{inviteId}` | Cancel invite |
+| `POST` | `/api/invites/store-cookie` | Store HttpOnly invite cookie for accept-invite link |
+| `POST` | `/api/invites/consume-cookie` | Consume invite cookie after sign-in |
 
 See [organisation-members.md](./organisation-members.md), [organisation-invites.md](./organisation-invites.md), [fleet.md](./fleet.md), [flights.md](./flights.md), and [api-logging.md](./api-logging.md).

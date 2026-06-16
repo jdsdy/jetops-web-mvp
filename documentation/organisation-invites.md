@@ -5,13 +5,13 @@ Organisation admins can invite and manage pending members from `/app/organisatio
 ## Requirements
 
 - Inviter must be an active admin: `organisation_members.is_admin = true` and `status = 'active'`
-- Invitee receives a Supabase invite email
+- Invitee receives a custom email with temporary login credentials
 - Invite records are stored in `organisation_invitations`
 - Pending membership is stored in `organisation_members` with `status = 'pending'`
 
 ## API
 
-All invite routes require an authenticated active admin of the organisation.
+All organisation invite admin routes require an authenticated active admin of the organisation.
 
 ### `POST /api/organisations/{organisationId}/invites`
 
@@ -44,7 +44,7 @@ Response: `201`
 | 400 | Invalid payload |
 | 401 | No authenticated session |
 | 403 | User is not an active admin of the organisation |
-| 500 | `inviteUserByEmail` or record creation failed |
+| 500 | User creation, record creation, or email send failed |
 
 ### `GET /api/organisations/{organisationId}/invites`
 
@@ -83,13 +83,58 @@ Response: `204`
 | 404 | Invite not found |
 | 500 | Delete failed |
 
-## Invite flow
+### `POST /api/invites/store-cookie`
+
+Stores an HttpOnly `invite_id` cookie for a valid invitation token. Used by `/auth/accept-invite` (client fetch). Returns JSON only — no redirects.
+
+Request body:
+
+```json
+{ "token": "organisation_invitations.id" }
+```
+
+| Status | Meaning |
+| --- | --- |
+| 200 `{ "ok": true }` | Cookie set, or a valid `invite_id` cookie was already present (idempotent fast path) |
+| 400/404 `{ "error": "..." }` | Invalid or expired invitation; cookie not set |
+
+Uses the admin client to read `organisation_invitations` before the user is signed in.
+
+### `POST /api/invites/consume-cookie`
+
+Consumes the `invite_id` cookie after sign-in. Used by the `/auth` login form (client fetch). Returns JSON only — no redirects.
+
+Request body:
+
+```json
+{ "access_token": "<jwt from sign-in session>" }
+```
+
+Flow:
+
+1. Verify JWT server-side with the publishable key (`auth.getUser(access_token)`).
+2. If no `invite_id` cookie: return `{ "ok": true, "has_set_password": boolean }` (normal login).
+3. If cookie present: admin reads invitation + pending membership; validates expiry, user id, and email match (`user.email` vs `organisation_invitations.email`).
+4. On validation failure: clear cookie, return `400` with expired-invite message. Client calls `signOut()`.
+5. On success: call `accept_organisation_invitation_atomic` (sole writer of `accepted_at`), sync profile names, clear cookie, return `{ "ok": true, "has_set_password": boolean }`.
+6. On transient Supabase errors: **do not** clear the cookie; return `503` with a retry message. Client does **not** sign the user out.
+
+| Status | Meaning |
+| --- | --- |
+| 200 | Success (with or without invite consumption) |
+| 400 | Definitive invite validation failure |
+| 401 | Invalid JWT |
+| 503 | Transient error — retry |
+
+## Invite creation flow
 
 1. Admin submits invite form on the organisation home page (or `POST` above).
 2. API validates session and admin membership via `requireOrgAdmin`.
-3. API calls `supabaseAdmin.auth.admin.inviteUserByEmail` with user metadata and `redirectTo: /auth/accept-invite`.
-
-   User metadata includes:
+3. API calls `supabaseAdmin.auth.admin.createUser` with:
+   - Invitee email
+   - A generated **temporary password** (10 characters)
+   - `email_confirm: true`
+   - User metadata:
 
    | Field | Value |
    | --- | --- |
@@ -99,54 +144,38 @@ Response: `204`
    | `role` | Invited role |
    | `organisation_id` | Organisation uuid |
    | `organisation_slug` | Organisation slug |
-   | `organisation_name` | Organisation display name (for invite email templates) |
+   | `organisation_name` | Organisation display name |
 
-4. On success, API calls `create_organisation_invite_records` to insert:
+4. API sets `profiles.has_set_password = false` for the created user.
+
+5. On success, API calls `create_organisation_invite_records` to insert:
    - `organisation_invitations` (with `expires_at`, default 7 days)
    - `organisation_members` (`status = 'pending'`, `is_admin = false`)
+6. API sends an email via Resend containing:
+   - The invitee email
+   - The temporary password
+   - An acceptance link: `/auth/accept-invite?token={organisation_invitations.id}`
+   - The inviting organisation name
 
 ## Accept-invite flow
 
 Routes:
 
-- `/auth/accept-invite` — password setup UI
-- `/auth/accept-invite/confirm` — server-side `token_hash` exchange (recommended email template target)
+- `/auth/accept-invite` — client page; calls `POST /api/invites/store-cookie`, then redirects to `/auth` or shows an error
+- `/auth/set-password` — forced password reset for invited users after first sign-in
 
-1. User opens invite link. Supabase's default invite email hits `/auth/v1/verify` (303 redirect) and lands on `redirectTo` with session tokens in the **URL hash** (`#access_token=...&refresh_token=...&type=invite`). The client reads the hash and calls `setSession`.
-2. For SSR-friendly links, customise the **Invite user** email template to point at the confirm route:
-
-```html
-<a href="{{ .SiteURL }}/auth/accept-invite/confirm?token_hash={{ .TokenHash }}&type=invite">
-  Accept invitation
-</a>
-```
-
-3. App loads `organisation_invitations` for `invited_user_id = auth.uid()`.
-4. Invitation must be valid:
-   - `invited_user_id` matches the signed-in user
-   - `expires_at` is in the future
-   - `accepted_at` is null
-5. If invalid → show **"This invite is no longer valid."**
-6. If valid → user sets password via `updateUser({ password })`.
-7. Server action calls `accept_organisation_invitation`, which:
-   - Sets `accepted_at = now()`
-   - Updates membership `status` from `pending` to `active`
-8. User is redirected to `/app/organisation/{organisationId}`.
+1. User clicks the emailed link: `/auth/accept-invite?token={organisation_invitations.id}`.
+2. Client calls `POST /api/invites/store-cookie` with the token. If an `invite_id` cookie is already set, the API returns success immediately (idempotent).
+3. On API failure, the page shows an invalid-invite message with a link home. On success, the client redirects to `/auth`.
+4. User signs in on `/auth` (browser Supabase client). The client sends the session JWT to `POST /api/invites/consume-cookie`.
+5. On consume failure (definitive), the client signs the user out and shows an expired-invite message. On consume success, the client redirects to `/auth/set-password` when `has_set_password` is `false`, otherwise to `/app/callback`.
+6. `accept_organisation_invitation_atomic` is the only code path that sets `organisation_invitations.accepted_at`, using `UPDATE ... WHERE accepted_at IS NULL` inside a single transaction.
 
 ## Environment variables
 
 | Variable | Purpose |
 | --- | --- |
-| `SUPABASE_SECRET_KEY` | Server-only secret key for `inviteUserByEmail`, member updates, and auth admin calls |
-| `NEXT_PUBLIC_SITE_URL` | Used for invite `redirectTo` URL |
-
-## Supabase configuration
-
-Add to redirect URLs:
-
-- `http://localhost:3000/auth/accept-invite`
-- `http://localhost:3000/auth/accept-invite/confirm`
-
-Adjust host/port for your environment.
-
-**Testing tip:** Open invite links in a private/incognito window. An existing signed-in session (e.g. the admin who sent the invite) will otherwise be used and the invitation lookup will fail.
+| `SUPABASE_SECRET_KEY` | Server-only secret key for `createUser`, member updates, and auth admin calls |
+| `NEXT_PUBLIC_SITE_URL` | Used to build invite accept URLs |
+| `RESEND_API_KEY` | Used to send invite emails via Resend |
+| `RESEND_FROM` | Email sender address for Resend (defaults to `system@em.jetoperations.net`) |

@@ -20,29 +20,50 @@ type OnboardingResult = {
   error?: string;
 };
 
+type SetPasswordResult = {
+  error?: string;
+};
+
 /**
- * Signs in a user with email and password, then redirects to their destination.
+ * Sets a new password for the signed-in invited user and marks the profile as complete.
  */
-export async function signInWithPassword(
-  _prevState: AuthResult,
+export async function setPasswordForInvitedUser(
+  _prevState: SetPasswordResult,
   formData: FormData,
-): Promise<AuthResult> {
-  const email = String(formData.get("email") ?? "");
+): Promise<SetPasswordResult> {
   const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirm_password") ?? "");
 
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-  if (error) {
-    return { error: error.message };
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters" };
   }
 
+  if (password !== confirmPassword) {
+    return { error: "Passwords do not match" };
+  }
+
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Unable to load user session" };
+    return { error: "You must be signed in to set a password" };
+  }
+
+  const { error: passwordError } = await supabase.auth.updateUser({ password });
+
+  if (passwordError) {
+    return { error: passwordError.message };
+  }
+
+  const { error: updateError } = await supabase
+    .from("profiles")
+    .update({ has_set_password: true })
+    .eq("id", user.id);
+
+  if (updateError) {
+    return { error: updateError.message };
   }
 
   const { data: profile } = await supabase

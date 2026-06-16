@@ -33,6 +33,11 @@ const ORGANISATION_ID_PATTERN =
 
 export const INVITATION_INVALID_MESSAGE = "This invite is no longer valid.";
 
+export const INVITE_EXPIRED_CONTACT_ADMIN_MESSAGE =
+  "Your invitation has expired. Please contact your system administrator.";
+
+export const INVITE_TRANSIENT_ERROR_MESSAGE = "Something went wrong. Please try again.";
+
 export type OrganisationMembership = {
   role: string;
   is_admin: boolean;
@@ -81,6 +86,15 @@ type MemberChangeAllowedResult =
 
 export type OrganisationInvitationRecord = {
   invited_user_id: string;
+  expires_at: string;
+  accepted_at: string | null;
+};
+
+export type ConsumeInvitationRecord = {
+  id: string;
+  email: string;
+  invited_user_id: string;
+  organisation_id: string;
   expires_at: string;
   accepted_at: string | null;
 };
@@ -397,6 +411,208 @@ export function isInvitationAcceptable(
   }
 
   return new Date(invitation.expires_at) > now;
+}
+
+/**
+ * Normalises an email address for invite comparison.
+ */
+export function normaliseInviteEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+type ValidateInvitationForConsumeInput = {
+  invitation: ConsumeInvitationRecord | null;
+  hasPendingMembership: boolean;
+  verifiedUserId: string;
+  verifiedUserEmail: string | undefined;
+  now?: Date;
+};
+
+/**
+ * Returns whether a stored invitation can be consumed for the verified user.
+ */
+export function validateInvitationForConsume(
+  input: ValidateInvitationForConsumeInput,
+): boolean {
+  const { invitation, hasPendingMembership, verifiedUserId, verifiedUserEmail } =
+    input;
+  const now = input.now ?? new Date();
+
+  if (!invitation || !hasPendingMembership) {
+    return false;
+  }
+
+  if (!isInvitationAcceptable(invitation, verifiedUserId, now)) {
+    return false;
+  }
+
+  if (!verifiedUserEmail) {
+    return false;
+  }
+
+  return (
+    normaliseInviteEmail(invitation.email) ===
+    normaliseInviteEmail(verifiedUserEmail)
+  );
+}
+
+type AcceptOrganisationInvitationResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+/**
+ * Accepts a pending organisation invitation atomically via the admin client.
+ *
+ * `accepted_at` is only ever written inside the `accept_organisation_invitation_atomic` RPC.
+ */
+export async function acceptOrganisationInvitationAtomic(
+  adminClient: SupabaseClient,
+  invitationId: string,
+  userId: string,
+): Promise<AcceptOrganisationInvitationResult> {
+  const { error } = await adminClient.rpc("accept_organisation_invitation_atomic", {
+    p_invitation_id: invitationId,
+    p_user_id: userId,
+  });
+
+  if (error) {
+    return { ok: false, error: INVITE_EXPIRED_CONTACT_ADMIN_MESSAGE };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Syncs invitee profile name fields from auth user metadata.
+ */
+export async function syncInviteeProfileFromMetadata(
+  adminClient: SupabaseClient,
+  user: { id: string; user_metadata?: Record<string, unknown> },
+): Promise<void> {
+  const fName = String(user.user_metadata?.f_name ?? "");
+  const lInitial = String(user.user_metadata?.l_initial ?? "");
+
+  if (!fName || !lInitial) {
+    return;
+  }
+
+  await adminClient
+    .from("profiles")
+    .update({ f_name: fName, l_initial: lInitial })
+    .eq("id", user.id);
+}
+
+/**
+ * Returns whether a Supabase error is likely transient (network/blip).
+ */
+export function isSupabaseTransientError(error: { message?: string } | null): boolean {
+  if (!error?.message) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+
+  return (
+    message.includes("fetch failed") ||
+    message.includes("network") ||
+    message.includes("timeout") ||
+    message.includes("econnreset") ||
+    message.includes("temporarily unavailable")
+  );
+}
+
+/**
+ * Loads whether the user has set their password.
+ */
+export async function loadProfileHasSetPassword(
+  adminClient: SupabaseClient,
+  userId: string,
+): Promise<boolean | null> {
+  const { data, error } = await adminClient
+    .from("profiles")
+    .select("has_set_password")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) {
+    return null;
+  }
+
+  return data?.has_set_password ?? true;
+}
+
+export type ConsumeOrganisationInviteResult =
+  | { outcome: "success"; hasSetPassword: boolean }
+  | { outcome: "invalid" }
+  | { outcome: "transient" };
+
+/**
+ * Validates and atomically accepts a pending organisation invitation.
+ */
+export async function consumeOrganisationInvite(
+  adminClient: SupabaseClient,
+  verifiedUser: {
+    id: string;
+    email?: string;
+    user_metadata?: Record<string, unknown>;
+  },
+  invitationId: string,
+): Promise<ConsumeOrganisationInviteResult> {
+  const { data: invitation, error: invitationError } = await adminClient
+    .from("organisation_invitations")
+    .select("id, email, invited_user_id, organisation_id, expires_at, accepted_at")
+    .eq("id", invitationId)
+    .maybeSingle();
+
+  if (invitationError) {
+    return isSupabaseTransientError(invitationError)
+      ? { outcome: "transient" }
+      : { outcome: "invalid" };
+  }
+
+  const { data: pendingMembership, error: membershipError } = await adminClient
+    .from("organisation_members")
+    .select("id")
+    .eq("organisation_id", invitation?.organisation_id ?? "")
+    .eq("user_id", verifiedUser.id)
+    .eq("status", "pending")
+    .maybeSingle();
+
+  if (membershipError) {
+    return isSupabaseTransientError(membershipError)
+      ? { outcome: "transient" }
+      : { outcome: "invalid" };
+  }
+
+  const isValid = validateInvitationForConsume({
+    invitation,
+    hasPendingMembership: Boolean(pendingMembership),
+    verifiedUserId: verifiedUser.id,
+    verifiedUserEmail: verifiedUser.email,
+  });
+
+  if (!isValid) {
+    return { outcome: "invalid" };
+  }
+
+  const acceptResult = await acceptOrganisationInvitationAtomic(
+    adminClient,
+    invitationId,
+    verifiedUser.id,
+  );
+
+  if (!acceptResult.ok) {
+    return { outcome: "invalid" };
+  }
+
+  await syncInviteeProfileFromMetadata(adminClient, verifiedUser);
+
+  const hasSetPassword = await loadProfileHasSetPassword(adminClient, verifiedUser.id);
+
+  return {
+    outcome: "success",
+    hasSetPassword: hasSetPassword ?? false,
+  };
 }
 
 /**

@@ -8,6 +8,8 @@ import {
   requireOrgAdmin,
   validateInvitePayload,
 } from "@/lib/organisation";
+import { generateTemporaryPassword } from "@/lib/password";
+import { sendOrganisationInviteEmail } from "@/lib/resend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -25,6 +27,31 @@ type InviteRequestBody = {
  */
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
+}
+
+async function markInviteeNeedsPassword(userId: string) {
+  const adminClient = createAdminClient();
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const { data: profile } = await adminClient
+      .from("profiles")
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (profile) {
+      const { error } = await adminClient
+        .from("profiles")
+        .update({ has_set_password: false })
+        .eq("id", userId);
+
+      return { error: error?.message ?? null };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+
+  return { error: "Profile not found" };
 }
 
 /**
@@ -128,9 +155,13 @@ export async function POST(
     }
 
     const adminClient = createAdminClient();
+    const temporaryPassword = generateTemporaryPassword(10);
     const { data: invitedUser, error: inviteError } =
-      await adminClient.auth.admin.inviteUserByEmail(validation.email, {
-        data: {
+      await adminClient.auth.admin.createUser({
+        email: validation.email,
+        password: temporaryPassword,
+        email_confirm: true,
+        user_metadata: {
           account_type: "organisation",
           f_name: validation.fName,
           l_initial: validation.lInitial,
@@ -139,11 +170,16 @@ export async function POST(
           organisation_slug: membership.organisations.slug,
           organisation_name: membership.organisations.name,
         },
-        redirectTo: `${getSiteUrl()}/auth/accept-invite`,
       });
 
     if (inviteError || !invitedUser.user) {
       return jsonError(inviteError?.message ?? "Failed to send invite", 500);
+    }
+
+    const profileError = await markInviteeNeedsPassword(invitedUser.user.id);
+
+    if (profileError.error) {
+      return jsonError(profileError.error, 500);
     }
 
     const { data: invitationId, error: recordsError } = await adminClient.rpc(
@@ -161,6 +197,18 @@ export async function POST(
 
     if (recordsError || !invitationId) {
       return jsonError(recordsError?.message ?? "Failed to create invite records", 500);
+    }
+
+    const inviteUrl = `${getSiteUrl()}/auth/accept-invite?token=${invitationId}`;
+    const { error: emailError } = await sendOrganisationInviteEmail({
+      to: validation.email,
+      organisationName: membership.organisations.name,
+      temporaryPassword,
+      inviteUrl,
+    });
+
+    if (emailError) {
+      return jsonError(emailError, 500);
     }
 
     return Response.json(
