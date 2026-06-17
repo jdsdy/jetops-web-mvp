@@ -79,8 +79,10 @@ Do not introduce new accent colours on the landing page without adding them to `
 ### Hero
 
 - Full viewport height minus header: `min-h-[calc(100vh-4.5rem)]`
-- Background image: `bg-cover bg-right bg-no-repeat` via `bg-[url('/hero_bg2.png')]`
-- Left readability gradient: `bg-gradient-to-r from-white via-white/55 to-white/10`
+- Background image: `bg-cover bg-right bg-no-repeat` — `hero_bg_mobile.png` below `lg`, `hero_bg.png` from `lg` up
+- Mobile and tablet: content aligned to top with `items-start`; top padding `pt-14` on mobile, `md:pt-32` on tablet; desktop (`lg+`) vertically centered with `items-center` and `py-20`
+- Left readability gradient on desktop: `bg-gradient-to-r from-white via-white/55 to-white/10`
+- Top readability gradient on mobile/tablet: `bg-gradient-to-b from-white via-white/55 to-white/10`
 - Text block: `max-w-xl`; supporting paragraph `max-w-md`
 - Decorative layers use `aria-hidden`
 
@@ -142,7 +144,8 @@ Do not add scroll animations, hover transforms, or extra keyframes unless there 
 | Asset | Use |
 | --- | --- |
 | `logo_square.png` | Header, footer, favicon |
-| `hero_bg2.png` | Hero background |
+| `hero_bg_mobile.png` | Hero background (mobile/tablet) |
+| `hero_bg.png` | Hero background (desktop) |
 | `foreflight.png` | EFB platform card |
 | `ozrunways.png` | EFB platform card |
 | `naips.png` | EFB platform card |

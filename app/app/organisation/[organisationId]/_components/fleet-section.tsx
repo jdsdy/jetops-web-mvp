@@ -11,9 +11,10 @@ import {
   portalFieldGroupClassName,
   portalLabelClassName,
   portalLinkClassName,
+  portalMobileListClassName,
+  portalMobileListItemWithActionsClassName,
   portalTdClassName,
 } from "@/components/portal-styles";
-import { PortalTable } from "@/components/portal-table";
 import { SectionHeader } from "@/components/section-header";
 import { TableSkeleton } from "@/components/table-skeleton";
 import type {
@@ -323,36 +324,85 @@ export function FleetSection({
           No aircraft in the fleet yet.
         </p>
       ) : (
-        <PortalTable
-          columns={
-            isAdmin
-              ? ["Manufacturer", "Model", "Tail number", "Seats", "RNAV", "Actions"]
-              : ["Manufacturer", "Model", "Tail number", "Seats", "RNAV"]
-          }
-        >
-          {fleet.map((aircraft) => (
-            <tr key={aircraft.id} className="hover:bg-neutral-50">
-              <td className={portalTdClassName}>{aircraft.manufacturer}</td>
-              <td className={portalTdClassName}>{aircraft.model}</td>
-              <td className={portalTdClassName}>{aircraft.tail_number}</td>
-              <td className={portalTdClassName}>{aircraft.seats}</td>
-              <td className={portalTdClassName}>
-                {aircraft.rnav_equipped ? "Yes" : "No"}
-              </td>
-              {isAdmin ? (
-                <td className={portalTdClassName}>
+        <>
+          <ul className={portalMobileListClassName}>
+            {fleet.map((aircraft) => (
+              <li
+                key={aircraft.id}
+                className={portalMobileListItemWithActionsClassName}
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-neutral-900">
+                    {aircraft.tail_number}
+                  </p>
+                  <p className="mt-1 text-sm text-aviation-slate">{aircraft.model}</p>
+                </div>
+                {isAdmin ? (
                   <button
                     type="button"
                     onClick={() => openManageDialog(aircraft)}
-                    className={portalLinkClassName}
+                    className={`${portalLinkClassName} shrink-0`}
                   >
                     Manage
                   </button>
-                </td>
-              ) : null}
-            </tr>
-          ))}
-        </PortalTable>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="min-w-full divide-y divide-neutral-200">
+              <thead className="bg-neutral-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-aviation-slate">
+                    Manufacturer
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-aviation-slate">
+                    Model
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-aviation-slate">
+                    Tail number
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-aviation-slate">
+                    Seats
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-aviation-slate">
+                    RNAV
+                  </th>
+                  {isAdmin ? (
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-aviation-slate">
+                      Actions
+                    </th>
+                  ) : null}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-200 bg-white">
+                {fleet.map((aircraft) => (
+                  <tr key={aircraft.id} className="hover:bg-neutral-50">
+                    <td className={portalTdClassName}>{aircraft.manufacturer}</td>
+                    <td className={portalTdClassName}>{aircraft.model}</td>
+                    <td className={portalTdClassName}>{aircraft.tail_number}</td>
+                    <td className={portalTdClassName}>{aircraft.seats}</td>
+                    <td className={portalTdClassName}>
+                      {aircraft.rnav_equipped ? "Yes" : "No"}
+                    </td>
+                    {isAdmin ? (
+                      <td className={portalTdClassName}>
+                        <button
+                          type="button"
+                          onClick={() => openManageDialog(aircraft)}
+                          className={portalLinkClassName}
+                        >
+                          Manage
+                        </button>
+                      </td>
+                    ) : null}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {isAdmin ? (

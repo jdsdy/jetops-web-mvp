@@ -7,9 +7,13 @@ import { PortalAlerts } from "@/components/portal-alerts";
 import { PortalButton } from "@/components/portal-button";
 import {
   portalCardClassName,
+  portalDesktopOnlyClassName,
   portalFieldClassName,
   portalFieldGroupClassName,
   portalLabelClassName,
+  portalLinkClassName,
+  portalMobileListClassName,
+  portalMobileListItemWithActionsClassName,
   portalTdClassName,
 } from "@/components/portal-styles";
 import { PortalTable } from "@/components/portal-table";
@@ -17,6 +21,8 @@ import { SectionHeader } from "@/components/section-header";
 import { TableSkeleton } from "@/components/table-skeleton";
 import { formatPortalDateTime } from "@/lib/format";
 import type { OrganisationMember } from "@/lib/organisation";
+
+import { MemberNameWithBadge } from "@/app/app/organisation/[organisationId]/_components/member-access-badge";
 
 type UserManagementProps = {
   organisationId: string;
@@ -51,6 +57,10 @@ export function UserManagement({
   const [roleDrafts, setRoleDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(initialMembers === undefined);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [managedMember, setManagedMember] = useState<OrganisationMember | null>(
+    null,
+  );
+  const [manageOpen, setManageOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [invitePending, setInvitePending] = useState(false);
@@ -108,6 +118,23 @@ export function UserManagement({
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (!manageOpen || !managedMember) {
+      return;
+    }
+
+    const updated = members.find((member) => member.id === managedMember.id);
+
+    if (
+      updated &&
+      (updated.is_admin !== managedMember.is_admin ||
+        updated.status !== managedMember.status ||
+        updated.role !== managedMember.role)
+    ) {
+      setManagedMember(updated);
+    }
+  }, [manageOpen, managedMember, members]);
 
   async function handleInviteSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -167,6 +194,9 @@ export function UserManagement({
 
     setMessage("Member role updated.");
     setMemberPendingId(null);
+    if (manageOpen) {
+      closeManageDialog();
+    }
     await loadData();
   }
 
@@ -219,6 +249,9 @@ export function UserManagement({
 
     setMessage("Member deactivated.");
     setMemberPendingId(null);
+    if (manageOpen) {
+      closeManageDialog();
+    }
     await loadData();
   }
 
@@ -244,6 +277,9 @@ export function UserManagement({
 
     setMessage("Member enabled.");
     setMemberPendingId(null);
+    if (manageOpen) {
+      closeManageDialog();
+    }
     await loadData();
   }
 
@@ -269,6 +305,9 @@ export function UserManagement({
 
     setMessage("Ownership transferred.");
     setMemberPendingId(null);
+    if (manageOpen) {
+      closeManageDialog();
+    }
     await loadData();
   }
 
@@ -296,6 +335,26 @@ export function UserManagement({
     await loadData();
   }
 
+  function openManageDialog(member: OrganisationMember) {
+    setManagedMember(member);
+    setRoleDrafts((current) => ({
+      ...current,
+      [member.id]: current[member.id] ?? member.role,
+    }));
+    setError(null);
+    setMessage(null);
+    setManageOpen(true);
+  }
+
+  function closeManageDialog() {
+    if (memberPendingId) {
+      return;
+    }
+
+    setManagedMember(null);
+    setManageOpen(false);
+  }
+
   const currentUserIsOwner =
     members.find((member) => member.user_id === currentUserId)?.is_owner ?? false;
 
@@ -314,7 +373,7 @@ export function UserManagement({
       <PortalAlerts error={error} message={message} />
 
       {loading ? (
-        <TableSkeleton columns={5} rows={6} />
+        <TableSkeleton columns={4} rows={6} />
       ) : (
         <>
           <h2 className="mb-3 text-sm font-semibold text-neutral-900">Members</h2>
@@ -322,101 +381,56 @@ export function UserManagement({
           {members.length === 0 ? (
             <p className="mb-8 text-sm text-aviation-slate">No members found.</p>
           ) : (
-            <div className="mb-8">
-              <PortalTable
-                columns={["Name", "Status", "Role", "Admin", "Actions"]}
-              >
+            <>
+              <ul className={`mb-8 ${portalMobileListClassName}`}>
                 {members.map((member) => (
-                  <tr key={member.id} className="hover:bg-neutral-50">
-                    <td className={portalTdClassName}>
-                        {member.display_name ?? "Unknown member"}
-                        {member.is_owner ? (
-                          <span className="ml-2 text-xs text-aviation-slate">
-                            (owner)
-                          </span>
-                        ) : null}
-                      </td>
-                    <td className={portalTdClassName}>{member.status}</td>
-                    <td className={portalTdClassName}>
-                        {member.status === "disabled" ? (
-                          member.role
-                        ) : (
-                          <input
-                            aria-label={`Role for ${member.display_name ?? "member"}`}
-                            value={roleDrafts[member.id] ?? member.role}
-                            onChange={(event) =>
-                              setRoleDrafts((current) => ({
-                                ...current,
-                                [member.id]: event.target.value,
-                              }))
-                            }
-                            className={portalFieldClassName}
-                          />
-                        )}
-                      </td>
-                    <td className={portalTdClassName}>
-                      {member.status === "disabled" ? (
-                        "—"
-                      ) : (
-                        <input
-                          type="checkbox"
-                          checked={member.is_admin}
-                          disabled={
-                            memberPendingId === member.id ||
-                            member.user_id === currentUserId ||
-                            member.is_owner
-                          }
-                          onChange={() => void handleAdminToggle(member)}
-                        />
-                      )}
-                    </td>
-                    <td className={portalTdClassName}>
-                        <div className="flex flex-wrap gap-2">
-                          {member.status === "disabled" ? (
-                            <PortalButton
-                              disabled={memberPendingId === member.id}
-                              onClick={() => void handleEnable(member.id)}
-                            >
-                              Enable
-                            </PortalButton>
-                          ) : (
-                            <>
-                              <PortalButton
-                                disabled={memberPendingId === member.id}
-                                onClick={() => void handleRoleSave(member.id)}
-                              >
-                                Save role
-                              </PortalButton>
-                              <PortalButton
-                                variant="secondary"
-                                disabled={
-                                  memberPendingId === member.id ||
-                                  member.user_id === currentUserId ||
-                                  member.is_owner
-                                }
-                                onClick={() => void handleDeactivate(member.id)}
-                              >
-                                Deactivate
-                              </PortalButton>
-                              {currentUserIsOwner && !member.is_owner ? (
-                                <PortalButton
-                                  variant="secondary"
-                                  disabled={memberPendingId === member.id}
-                                  onClick={() =>
-                                    void handleTransferOwnership(member.id)
-                                  }
-                                >
-                                  Transfer ownership
-                                </PortalButton>
-                              ) : null}
-                            </>
-                          )}
-                      </div>
-                    </td>
-                  </tr>
+                  <li
+                    key={member.id}
+                    className={portalMobileListItemWithActionsClassName}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium text-neutral-900">
+                        <MemberNameWithBadge member={member} />
+                      </p>
+                      <p className="mt-1 text-sm text-aviation-slate">
+                        {member.role}
+                        {member.status === "disabled" ? " · Disabled" : null}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openManageDialog(member)}
+                      className={`${portalLinkClassName} shrink-0`}
+                    >
+                      Manage
+                    </button>
+                  </li>
                 ))}
-              </PortalTable>
-            </div>
+              </ul>
+
+              <div className={`mb-8 ${portalDesktopOnlyClassName}`}>
+                <PortalTable columns={["Name", "Status", "Role", "Actions"]}>
+                  {members.map((member) => (
+                    <tr key={member.id} className="hover:bg-neutral-50">
+                      <td className={portalTdClassName}>
+                        <MemberNameWithBadge member={member} />
+                      </td>
+                      <td className={portalTdClassName}>{member.status}</td>
+                      <td className={portalTdClassName}>{member.role}</td>
+                      <td className={portalTdClassName}>
+                        <button
+                          type="button"
+                          onClick={() => openManageDialog(member)}
+                          className={portalLinkClassName}
+                        >
+                          Manage
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </PortalTable>
+              </div>
+            </>
           )}
 
           <h2 className="mb-3 text-sm font-semibold text-neutral-900">
@@ -426,15 +440,22 @@ export function UserManagement({
           {invites.length === 0 ? (
             <p className="text-sm text-aviation-slate">No pending invites.</p>
           ) : (
-            <PortalTable columns={["Email", "Role", "Expires", "Actions"]}>
-              {invites.map((invite) => (
-                <tr key={invite.id} className="hover:bg-neutral-50">
-                  <td className={portalTdClassName}>{invite.email}</td>
-                  <td className={portalTdClassName}>{invite.role}</td>
-                  <td className={portalTdClassName}>
-                    {formatPortalDateTime(invite.expires_at)}
-                  </td>
-                  <td className={portalTdClassName}>
+            <>
+              <ul className={portalMobileListClassName}>
+                {invites.map((invite) => (
+                  <li
+                    key={invite.id}
+                    className={portalMobileListItemWithActionsClassName}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium text-neutral-900">{invite.email}</p>
+                      <p className="mt-1 text-sm text-aviation-slate">
+                        {invite.role}
+                      </p>
+                      <p className="mt-1 text-sm text-aviation-slate">
+                        Expires {formatPortalDateTime(invite.expires_at)}
+                      </p>
+                    </div>
                     <PortalButton
                       variant="secondary"
                       disabled={invitePendingId === invite.id}
@@ -442,13 +463,163 @@ export function UserManagement({
                     >
                       Cancel
                     </PortalButton>
-                  </td>
-                </tr>
-              ))}
-            </PortalTable>
+                  </li>
+                ))}
+              </ul>
+
+              <div className={portalDesktopOnlyClassName}>
+                <PortalTable columns={["Email", "Role", "Expires", "Actions"]}>
+                  {invites.map((invite) => (
+                    <tr key={invite.id} className="hover:bg-neutral-50">
+                      <td className={portalTdClassName}>{invite.email}</td>
+                      <td className={portalTdClassName}>{invite.role}</td>
+                      <td className={portalTdClassName}>
+                        {formatPortalDateTime(invite.expires_at)}
+                      </td>
+                      <td className={portalTdClassName}>
+                        <PortalButton
+                          variant="secondary"
+                          disabled={invitePendingId === invite.id}
+                          onClick={() => void handleCancelInvite(invite.id)}
+                        >
+                          Cancel
+                        </PortalButton>
+                      </td>
+                    </tr>
+                  ))}
+                </PortalTable>
+              </div>
+            </>
           )}
         </>
       )}
+
+      <Modal
+        open={manageOpen}
+        onClose={closeManageDialog}
+        title="Manage member"
+        footer={
+          <PortalButton
+            variant="secondary"
+            disabled={Boolean(
+              managedMember && memberPendingId === managedMember.id,
+            )}
+            onClick={closeManageDialog}
+          >
+            Close
+          </PortalButton>
+        }
+      >
+        {managedMember ? (
+          <div className="space-y-4">
+            <p className="text-sm text-aviation-slate">
+              <MemberNameWithBadge member={managedMember} />
+            </p>
+
+            <div className={portalFieldGroupClassName}>
+              <span className={portalLabelClassName}>Status</span>
+              <p className="text-sm text-neutral-900">{managedMember.status}</p>
+            </div>
+
+            {managedMember.status === "disabled" ? (
+              <div className={portalFieldGroupClassName}>
+                <span className={portalLabelClassName}>Role</span>
+                <p className="text-sm text-neutral-900">{managedMember.role}</p>
+              </div>
+            ) : (
+              <>
+                <div className={portalFieldGroupClassName}>
+                  <label
+                    htmlFor={`manage-role-${managedMember.id}`}
+                    className={portalLabelClassName}
+                  >
+                    Role
+                  </label>
+                  <input
+                    id={`manage-role-${managedMember.id}`}
+                    aria-label={`Role for ${managedMember.display_name ?? "member"}`}
+                    value={roleDrafts[managedMember.id] ?? managedMember.role}
+                    onChange={(event) =>
+                      setRoleDrafts((current) => ({
+                        ...current,
+                        [managedMember.id]: event.target.value,
+                      }))
+                    }
+                    className={portalFieldClassName}
+                  />
+                </div>
+
+                <div className={portalFieldGroupClassName}>
+                  <label
+                    htmlFor={`manage-admin-${managedMember.id}`}
+                    className={portalLabelClassName}
+                  >
+                    <input
+                      id={`manage-admin-${managedMember.id}`}
+                      type="checkbox"
+                      checked={managedMember.is_admin}
+                      disabled={
+                        memberPendingId === managedMember.id ||
+                        managedMember.user_id === currentUserId ||
+                        managedMember.is_owner
+                      }
+                      onChange={() => void handleAdminToggle(managedMember)}
+                      className="mr-2"
+                    />
+                    Organisation admin
+                  </label>
+                </div>
+              </>
+            )}
+
+            <div className="flex flex-col gap-2 pt-2">
+              {managedMember.status === "disabled" ? (
+                <PortalButton
+                  disabled={memberPendingId === managedMember.id}
+                  onClick={() => void handleEnable(managedMember.id)}
+                >
+                  {memberPendingId === managedMember.id
+                    ? "Enabling..."
+                    : "Enable member"}
+                </PortalButton>
+              ) : (
+                <>
+                  <PortalButton
+                    disabled={memberPendingId === managedMember.id}
+                    onClick={() => void handleRoleSave(managedMember.id)}
+                  >
+                    {memberPendingId === managedMember.id
+                      ? "Saving..."
+                      : "Save role"}
+                  </PortalButton>
+                  <PortalButton
+                    variant="secondary"
+                    disabled={
+                      memberPendingId === managedMember.id ||
+                      managedMember.user_id === currentUserId ||
+                      managedMember.is_owner
+                    }
+                    onClick={() => void handleDeactivate(managedMember.id)}
+                  >
+                    Deactivate member
+                  </PortalButton>
+                  {currentUserIsOwner && !managedMember.is_owner ? (
+                    <PortalButton
+                      variant="secondary"
+                      disabled={memberPendingId === managedMember.id}
+                      onClick={() =>
+                        void handleTransferOwnership(managedMember.id)
+                      }
+                    >
+                      Transfer ownership
+                    </PortalButton>
+                  ) : null}
+                </>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </Modal>
 
       <Modal
         open={inviteOpen}

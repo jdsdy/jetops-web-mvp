@@ -1,7 +1,16 @@
-import Link from "next/link";
+"use client";
 
-import { PortalTable } from "@/components/portal-table";
-import { portalLinkClassName, portalTdClassName } from "@/components/portal-styles";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+import {
+  portalTableBodyClassName,
+  portalTableClassName,
+  portalTableHeadClassName,
+  portalLinkClassName,
+  portalTdClassName,
+  portalThClassName,
+} from "@/components/portal-styles";
 import { formatPortalDate } from "@/lib/format";
 import type { OrganisationFlightListItem } from "@/lib/flights";
 
@@ -9,6 +18,8 @@ type FlightsListProps = {
   organisationId: string;
   flights: OrganisationFlightListItem[];
 };
+
+const mobileHiddenColumnClassName = "hidden md:table-cell";
 
 /**
  * Formats a flight route label for the organisation flights list.
@@ -54,6 +65,8 @@ function buildFlightPageHref(
  * Displays organisation flights in a table with links to the analysis page.
  */
 export function FlightsList({ organisationId, flights }: FlightsListProps) {
+  const router = useRouter();
+
   if (flights.length === 0) {
     return (
       <p className="text-sm text-aviation-slate">
@@ -63,31 +76,65 @@ export function FlightsList({ organisationId, flights }: FlightsListProps) {
   }
 
   return (
-    <PortalTable columns={["Route", "Aircraft", "Status", "Created", "Actions"]}>
-      {flights.map((flight) => {
-        const href = buildFlightPageHref(organisationId, flight);
-        const status = flight.job_status ?? flight.status ?? "Unknown";
-
-        return (
-          <tr key={flight.id} className="hover:bg-neutral-50">
-            <td className={portalTdClassName}>{formatRoute(flight)}</td>
-            <td className={portalTdClassName}>{formatAircraft(flight)}</td>
-            <td className={portalTdClassName}>{status}</td>
-            <td className={portalTdClassName}>
-              {formatPortalDate(flight.created_at)}
-            </td>
-            <td className={portalTdClassName}>
-              {href ? (
-                <Link href={href} className={portalLinkClassName}>
-                  View analysis
-                </Link>
-              ) : (
-                <span className="text-aviation-slate">—</span>
-              )}
-            </td>
+    <div className="overflow-x-auto">
+      <table className={portalTableClassName}>
+        <thead className={portalTableHeadClassName}>
+          <tr>
+            <th className={portalThClassName}>Route</th>
+            <th className={portalThClassName}>Aircraft</th>
+            <th className={`${portalThClassName} ${mobileHiddenColumnClassName}`}>
+              Status
+            </th>
+            <th className={portalThClassName}>Created</th>
+            <th className={`${portalThClassName} ${mobileHiddenColumnClassName}`}>
+              Actions
+            </th>
           </tr>
-        );
-      })}
-    </PortalTable>
+        </thead>
+        <tbody className={portalTableBodyClassName}>
+          {flights.map((flight) => {
+            const href = buildFlightPageHref(organisationId, flight);
+            const status = flight.job_status ?? flight.status ?? "Unknown";
+
+            return (
+              <tr
+                key={flight.id}
+                className={
+                  href
+                    ? "cursor-pointer hover:bg-neutral-50 active:bg-neutral-100 md:cursor-default md:active:bg-transparent"
+                    : "hover:bg-neutral-50"
+                }
+                onClick={() => {
+                  if (href && window.matchMedia("(max-width: 767px)").matches) {
+                    router.push(href);
+                  }
+                }}
+              >
+                <td className={portalTdClassName}>{formatRoute(flight)}</td>
+                <td className={portalTdClassName}>{formatAircraft(flight)}</td>
+                <td className={`${portalTdClassName} ${mobileHiddenColumnClassName}`}>
+                  {status}
+                </td>
+                <td className={portalTdClassName}>
+                  {formatPortalDate(flight.created_at)}
+                </td>
+                <td
+                  className={`${portalTdClassName} ${mobileHiddenColumnClassName}`}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {href ? (
+                    <Link href={href} className={portalLinkClassName}>
+                      View analysis
+                    </Link>
+                  ) : (
+                    <span className="text-aviation-slate">—</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }

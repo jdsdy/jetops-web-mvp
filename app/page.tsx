@@ -7,6 +7,12 @@ import {
   signInClassName,
 } from "@/components/landing-header";
 
+const heroBackgroundLayerClassName =
+  "absolute inset-0 bg-cover bg-right bg-no-repeat";
+
+const heroReadabilityGradientClassName =
+  "absolute inset-0 bg-gradient-to-b from-white via-white/55 to-white/10 lg:bg-gradient-to-r";
+
 const efbPlatforms = [
   {
     name: "ForeFlight",
@@ -52,17 +58,18 @@ export default function Home() {
       <LandingHeader />
 
       <main className="flex-1">
-        <section className="relative flex min-h-[calc(100vh-4.5rem)] items-center overflow-hidden">
+        <section className="relative flex min-h-[calc(100vh-4.5rem)] items-start overflow-hidden lg:items-center">
           <div
             aria-hidden
-            className="absolute inset-0 bg-[url('/hero_bg.png')] bg-cover bg-right bg-no-repeat"
+            className={`${heroBackgroundLayerClassName} bg-[url('/hero_bg_mobile.png')] lg:hidden`}
           />
           <div
             aria-hidden
-            className="absolute inset-0 bg-gradient-to-r from-white via-white/55 to-white/10"
+            className={`${heroBackgroundLayerClassName} hidden bg-[url('/hero_bg.png')] lg:block`}
           />
+          <div aria-hidden className={heroReadabilityGradientClassName} />
 
-          <div className="relative mx-auto w-full max-w-6xl px-6 py-20">
+          <div className="relative mx-auto w-full max-w-6xl px-6 pt-14 pb-20 md:pt-32 lg:py-20">
             <div className="max-w-xl animate-fade-up">
               <p className="mb-4 text-sm font-medium tracking-wide text-aviation-blue uppercase">
                 Flight briefing intelligence

@@ -3,7 +3,6 @@ import type { RawNotam } from "@/lib/flights";
 
 type NotamDetailProps = {
   notam: RawNotam;
-  summary?: string | null;
   showFailedMessage?: boolean;
 };
 
@@ -11,6 +10,17 @@ type NotamFieldProps = {
   label: string;
   value: string;
 };
+
+/**
+ * Splits a NOTAM Q line into segments that wrap at slash boundaries.
+ */
+function splitNotamQLineSegments(qLine: string): string[] {
+  const parts = qLine.split("/");
+
+  return parts.map((part, index) =>
+    index < parts.length - 1 ? `${part}/` : part,
+  );
+}
 
 /**
  * Single NOTAM field with label and pre-wrapped value.
@@ -22,6 +32,28 @@ function NotamField({ label, value }: NotamFieldProps) {
         {label}
       </p>
       <p className="mt-1 whitespace-pre-wrap text-sm text-neutral-900">{value}</p>
+    </div>
+  );
+}
+
+/**
+ * NOTAM Q field with wrapping at slash-delimited segments.
+ */
+function NotamQField({ value }: { value: string }) {
+  const segments = splitNotamQLineSegments(value);
+
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-aviation-slate">
+        Q
+      </p>
+      <p className="mt-1 text-sm text-neutral-900">
+        {segments.map((segment, index) => (
+          <span key={index} className="inline-block max-w-full">
+            {segment}
+          </span>
+        ))}
+      </p>
     </div>
   );
 }
@@ -53,10 +85,8 @@ function NotamFieldPair({
  */
 export function NotamDetail({
   notam,
-  summary,
   showFailedMessage = false,
 }: NotamDetailProps) {
-  const hasSummary = Boolean(summary?.trim());
   const hasTitle = hasRawNotamFieldValue(notam.title);
   const hasQ = hasRawNotamFieldValue(notam.q);
   const hasA = hasRawNotamFieldValue(notam.a);
@@ -68,16 +98,7 @@ export function NotamDetail({
   const hasG = hasRawNotamFieldValue(notam.g);
 
   const hasContent =
-    hasSummary ||
-    hasTitle ||
-    hasQ ||
-    hasA ||
-    hasB ||
-    hasC ||
-    hasD ||
-    hasE ||
-    hasF ||
-    hasG;
+    hasTitle || hasQ || hasA || hasB || hasC || hasD || hasE || hasF || hasG;
 
   if (!hasContent && !showFailedMessage) {
     return null;
@@ -91,9 +112,8 @@ export function NotamDetail({
         </p>
       ) : null}
 
-      {hasSummary ? <NotamField label="Summary" value={summary!} /> : null}
       {hasTitle ? <NotamField label="Title" value={notam.title!} /> : null}
-      {hasQ ? <NotamField label="Q" value={notam.q!} /> : null}
+      {hasQ ? <NotamQField value={notam.q!} /> : null}
       {hasA ? <NotamField label="A" value={notam.a!} /> : null}
 
       <NotamFieldPair

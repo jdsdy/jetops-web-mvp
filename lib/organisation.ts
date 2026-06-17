@@ -654,6 +654,25 @@ export function isOrgAdminMembership(membership: {
   return membership.is_admin && membership.status === "active";
 }
 
+/**
+ * Returns the access badge shown beside a member name.
+ * Owners are labelled only as owner; admins who are not owners as admin; others as member.
+ */
+export function getMemberAccessBadgeLabel(member: {
+  is_owner: boolean;
+  is_admin: boolean;
+}): "owner" | "admin" | "member" {
+  if (member.is_owner) {
+    return "owner";
+  }
+
+  if (member.is_admin) {
+    return "admin";
+  }
+
+  return "member";
+}
+
 function normaliseMembershipRow(data: {
   role: string;
   is_admin: boolean;

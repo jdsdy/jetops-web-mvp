@@ -8,6 +8,7 @@ import {
   formatMemberDisplayName,
   getOrganisationRedirect,
   isInvitationAcceptable,
+  getMemberAccessBadgeLabel,
   isOrgAdminMembership,
   isSupabaseTransientError,
   normaliseInviteEmail,
@@ -333,6 +334,26 @@ describe("isOrgAdminMembership", () => {
         status: "pending",
       }),
     ).toBe(false);
+  });
+});
+
+describe("getMemberAccessBadgeLabel", () => {
+  it("returns owner for owners even when they are also admin", () => {
+    expect(
+      getMemberAccessBadgeLabel({ is_owner: true, is_admin: true }),
+    ).toBe("owner");
+  });
+
+  it("returns admin for non-owner admins", () => {
+    expect(
+      getMemberAccessBadgeLabel({ is_owner: false, is_admin: true }),
+    ).toBe("admin");
+  });
+
+  it("returns member for regular members", () => {
+    expect(
+      getMemberAccessBadgeLabel({ is_owner: false, is_admin: false }),
+    ).toBe("member");
   });
 });
 

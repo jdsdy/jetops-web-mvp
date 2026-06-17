@@ -11,6 +11,7 @@ import { NotamFeedbackForm } from "@/app/app/organisation/[organisationId]/fligh
 import { NotamRowChevron } from "@/app/app/organisation/[organisationId]/flights/_components/notam-row-chevron";
 import {
   portalCardClassName,
+  portalMobileListClassName,
   portalTableBodyClassName,
   portalTableClassName,
   portalTableHeadClassName,
@@ -153,6 +154,38 @@ function toggleExpandedRowKey(
 }
 
 /**
+ * Expanded NOTAM detail and optional feedback form.
+ */
+function NotamExpandedContent({
+  row,
+  organisationId,
+  flightId,
+  flightPlanId,
+}: {
+  row: NotamTableRow;
+  organisationId: string;
+  flightId: string;
+  flightPlanId: string;
+}) {
+  return (
+    <div className="space-y-4">
+      <NotamDetail
+        notam={row.detailNotam}
+        showFailedMessage={row.showFailedMessage}
+      />
+      {row.analysedNotamId ? (
+        <NotamFeedbackForm
+          organisationId={organisationId}
+          flightId={flightId}
+          flightPlanId={flightPlanId}
+          analysedNotamId={row.analysedNotamId}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * Expandable NOTAM table with category filtering.
  */
 export function AnalysedNotamsList({
@@ -262,79 +295,116 @@ export function AnalysedNotamsList({
           No NOTAMs match the selected category.
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className={portalTableClassName}>
-            <thead className={portalTableHeadClassName}>
-              <tr>
-                <th className={portalThClassName}>NOTAM ID</th>
-                <th className={portalThClassName}>Category</th>
-                <th className={portalThClassName}>Summary</th>
-                <th className={`${portalThClassName} w-10`}>
-                  <span className="sr-only">Expand</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody className={portalTableBodyClassName}>
-              {filteredRows.map((row) => {
-                const isExpanded = expandedRowKeys.has(row.rowKey);
+        <>
+          <ul className={portalMobileListClassName}>
+            {filteredRows.map((row) => {
+              const isExpanded = expandedRowKeys.has(row.rowKey);
 
-                return (
-                  <Fragment key={row.rowKey}>
-                    <tr
-                      className="cursor-pointer hover:bg-neutral-50"
-                      onClick={() =>
-                        setExpandedRowKeys((current) =>
-                          toggleExpandedRowKey(current, row.rowKey),
-                        )
-                      }
-                      aria-expanded={isExpanded}
-                    >
-                      <td className={`${portalTdClassName} font-medium whitespace-nowrap`}>
-                        {row.notamId}
-                      </td>
-                      <td className={`${portalTdClassName} whitespace-nowrap`}>
-                        <NotamCategoryPill
-                          label={row.categoryLabel}
-                          variant={row.categoryVariant}
-                          category={row.categoryNumber}
-                        />
-                      </td>
-                      <td
-                        className={`${portalTdClassName} max-w-md whitespace-normal text-aviation-slate`}
-                      >
+              return (
+                <li key={row.rowKey}>
+                  <button
+                    type="button"
+                    className="flex w-full items-start gap-3 px-1 py-4 text-left hover:bg-neutral-50"
+                    onClick={() =>
+                      setExpandedRowKeys((current) =>
+                        toggleExpandedRowKey(current, row.rowKey),
+                      )
+                    }
+                    aria-expanded={isExpanded}
+                  >
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <NotamCategoryPill
+                        label={row.categoryLabel}
+                        variant={row.categoryVariant}
+                        category={row.categoryNumber}
+                      />
+                      <p className="font-medium text-neutral-900">{row.notamId}</p>
+                      <p className="text-sm whitespace-normal text-aviation-slate">
                         {row.summary?.trim() ? row.summary : "—"}
-                      </td>
-                      <td className={`${portalTdClassName} w-10 text-right`}>
-                        <NotamRowChevron expanded={isExpanded} />
-                      </td>
-                    </tr>
-                    {isExpanded ? (
-                      <tr className="bg-neutral-50">
-                        <td colSpan={4} className="px-4 py-4">
-                          <div className="space-y-4">
-                            <NotamDetail
-                              notam={row.detailNotam}
-                              summary={row.detailSummary}
-                              showFailedMessage={row.showFailedMessage}
-                            />
-                            {row.analysedNotamId ? (
-                              <NotamFeedbackForm
-                                organisationId={organisationId}
-                                flightId={flightId}
-                                flightPlanId={flightPlanId}
-                                analysedNotamId={row.analysedNotamId}
-                              />
-                            ) : null}
-                          </div>
+                      </p>
+                    </div>
+                    <NotamRowChevron expanded={isExpanded} />
+                  </button>
+                  {isExpanded ? (
+                    <div className="border-t border-neutral-200 bg-neutral-50 px-1 py-4">
+                      <NotamExpandedContent
+                        row={row}
+                        organisationId={organisationId}
+                        flightId={flightId}
+                        flightPlanId={flightPlanId}
+                      />
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className={portalTableClassName}>
+              <thead className={portalTableHeadClassName}>
+                <tr>
+                  <th className={portalThClassName}>NOTAM ID</th>
+                  <th className={portalThClassName}>Category</th>
+                  <th className={portalThClassName}>Summary</th>
+                  <th className={`${portalThClassName} w-10`}>
+                    <span className="sr-only">Expand</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className={portalTableBodyClassName}>
+                {filteredRows.map((row) => {
+                  const isExpanded = expandedRowKeys.has(row.rowKey);
+
+                  return (
+                    <Fragment key={row.rowKey}>
+                      <tr
+                        className="cursor-pointer hover:bg-neutral-50"
+                        onClick={() =>
+                          setExpandedRowKeys((current) =>
+                            toggleExpandedRowKey(current, row.rowKey),
+                          )
+                        }
+                        aria-expanded={isExpanded}
+                      >
+                        <td className={`${portalTdClassName} font-medium whitespace-nowrap`}>
+                          {row.notamId}
+                        </td>
+                        <td className={`${portalTdClassName} whitespace-nowrap`}>
+                          <NotamCategoryPill
+                            label={row.categoryLabel}
+                            variant={row.categoryVariant}
+                            category={row.categoryNumber}
+                          />
+                        </td>
+                        <td
+                          className={`${portalTdClassName} max-w-md whitespace-normal text-aviation-slate`}
+                        >
+                          {row.summary?.trim() ? row.summary : "—"}
+                        </td>
+                        <td className={`${portalTdClassName} w-10 text-right`}>
+                          <NotamRowChevron expanded={isExpanded} />
                         </td>
                       </tr>
-                    ) : null}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      {isExpanded ? (
+                        <tr className="bg-neutral-50">
+                          <td colSpan={4} className="px-4 py-4">
+                            <NotamExpandedContent
+                              row={row}
+                              organisationId={organisationId}
+                              flightId={flightId}
+                              flightPlanId={flightPlanId}
+                            />
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

@@ -19,3 +19,13 @@ export const portalAlertSuccessClassName = "mb-4 text-sm text-emerald-700";
 
 export const portalLinkClassName =
   "font-medium text-aviation-navy hover:text-aviation-blue";
+
+export const portalMobileListClassName =
+  "divide-y divide-neutral-200 border-t border-neutral-200 md:hidden";
+
+export const portalMobileListItemClassName = "py-4";
+
+export const portalMobileListItemWithActionsClassName =
+  "flex items-start justify-between gap-3 py-4";
+
+export const portalDesktopOnlyClassName = "hidden md:block";
