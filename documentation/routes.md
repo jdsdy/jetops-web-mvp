@@ -9,6 +9,7 @@
 | `/app/organisation/setup` | Yes (organisation) | Create organisation form |
 | `/auth/accept-invite` | No | Invite link; client calls `POST /api/invites/store-cookie`, then redirects to `/auth` |
 | `/auth/set-password` | Yes | Forced password reset for invited users after first sign-in |
+| `/auth/update-password` | Yes (after reset link) | Self-service password reset after email link |
 | `/app/personal` | Yes (personal) | Unavailable notice and sign out |
 | `/app/organisation` | Yes (organisation) | Redirects to `/app/organisation/{organisationId}` for active members |
 | `/app/organisation/{organisationId}` | Yes (organisation) | Organisation CRM home: members, fleet, flights |

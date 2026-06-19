@@ -12,6 +12,10 @@ import {
   isValidAccountType,
   parseInviteUrl,
   validateOnboardingFields,
+  validatePasswordFields,
+  hasAuthLinkError,
+  parseAuthLinkErrorFromHash,
+  resolvePasswordResetNextPath,
   validateSignupCode,
 } from "@/lib/auth";
 
@@ -31,6 +35,74 @@ describe("isValidAccountType", () => {
 
   it("exposes the supported account types", () => {
     expect(ACCOUNT_TYPES).toEqual(["organisation", "personal"]);
+  });
+});
+
+describe("hasAuthLinkError", () => {
+  it("detects access denied errors from query params", () => {
+    expect(
+      hasAuthLinkError({
+        error: "access_denied",
+        error_code: "otp_expired",
+      }),
+    ).toBe(true);
+  });
+
+  it("returns false when no auth link error is present", () => {
+    expect(hasAuthLinkError({ error: null, error_code: null })).toBe(false);
+  });
+});
+
+describe("parseAuthLinkErrorFromHash", () => {
+  it("detects auth link errors in URL hash fragments", () => {
+    expect(
+      parseAuthLinkErrorFromHash(
+        "#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired",
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("resolvePasswordResetNextPath", () => {
+  it("returns the default update-password path", () => {
+    expect(resolvePasswordResetNextPath(null)).toBe("/auth/update-password");
+  });
+
+  it("accepts an app-relative next path", () => {
+    expect(resolvePasswordResetNextPath("/auth/update-password")).toBe(
+      "/auth/update-password",
+    );
+  });
+
+  it("extracts the path from a full redirect URL", () => {
+    expect(
+      resolvePasswordResetNextPath(
+        "https://app.jetops.test/auth/update-password",
+      ),
+    ).toBe("/auth/update-password");
+  });
+});
+
+describe("validatePasswordFields", () => {
+  it("rejects passwords shorter than 8 characters", () => {
+    expect(validatePasswordFields("short", "short")).toEqual({
+      valid: false,
+      error: "Password must be at least 8 characters",
+    });
+  });
+
+  it("rejects mismatched passwords", () => {
+    expect(validatePasswordFields("password-one", "password-two")).toEqual({
+      valid: false,
+      error: "Passwords do not match",
+    });
+  });
+
+  it("accepts matching passwords of at least 8 characters", () => {
+    expect(validatePasswordFields("password-one", "password-one")).toEqual({
+      valid: true,
+      password: "password-one",
+    });
   });
 });
 

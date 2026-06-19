@@ -6,6 +6,7 @@ import { useActionState, useState } from "react";
 import { signUp } from "@/app/actions/auth";
 import { signInClassName } from "@/components/landing-header";
 import { ACCOUNT_TYPES } from "@/lib/auth";
+import { getPasswordResetRedirectUrl } from "@/lib/env";
 import {
   INVITE_EXPIRED_CONTACT_ADMIN_MESSAGE,
   INVITE_TRANSIENT_ERROR_MESSAGE,
@@ -21,6 +22,8 @@ type AuthFormState = {
   message?: string;
 };
 
+type AuthMode = "login" | "signup" | "forgot-password";
+
 const initialState: AuthFormState = {};
 
 const labelClassName = "block text-sm font-medium text-neutral-900";
@@ -33,18 +36,81 @@ const fieldGroupClassName = "space-y-1";
  */
 export function AuthForm({ initialError }: AuthFormProps) {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<AuthMode>("login");
   const [loginError, setLoginError] = useState<string | undefined>(initialError);
   const [loginPending, setLoginPending] = useState(false);
+  const [forgotPasswordError, setForgotPasswordError] = useState<string>();
+  const [forgotPasswordMessage, setForgotPasswordMessage] = useState<string>();
+  const [forgotPasswordPending, setForgotPasswordPending] = useState(false);
   const [signupState, signupAction, signupPending] = useActionState(
     signUp,
     initialState,
   );
 
   const isSignup = mode === "signup";
+  const isForgotPassword = mode === "forgot-password";
   const state = signupState;
-  const pending = isSignup ? signupPending : loginPending;
-  const alertMessage = isSignup ? state.error : loginError;
+  // 'pending' tracks whether the form is currently submitting:
+  // - In signup mode, it's the result of the async signUp action
+  // - In forgot-password mode, it's the state for the async forgot password action
+  // - Otherwise, it's the login-in-progress flag
+  const pending = isSignup
+    ? signupPending
+    : isForgotPassword
+      ? forgotPasswordPending
+      : loginPending;
+
+  // 'alertMessage' is the error message shown to the user (if any):
+  // - In signup mode, it's the error returned by the signup action
+  // - In forgot-password mode, it's the locally-managed forgot password error
+  // - Otherwise, it's the locally-managed login error
+  const alertMessage = isSignup
+    ? state.error
+    : isForgotPassword
+      ? forgotPasswordError
+      : loginError;
+
+  // 'successMessage' is the positive/info message for the user:
+  // - In forgot-password mode, it's the forgot-password success message
+  // - Otherwise, it's any general signup success/info message
+  const successMessage = isForgotPassword
+    ? forgotPasswordMessage
+    : state.message;
+
+  function switchMode(nextMode: AuthMode) {
+    setMode(nextMode);
+    setLoginError(undefined);
+    setForgotPasswordError(undefined);
+    setForgotPasswordMessage(undefined);
+  }
+
+  async function handleForgotPasswordSubmit(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+    setForgotPasswordError(undefined);
+    setForgotPasswordMessage(undefined);
+    setForgotPasswordPending(true);
+
+    const formData = new FormData(event.currentTarget);
+    const email = String(formData.get("email") ?? "");
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: getPasswordResetRedirectUrl(),
+    });
+
+    setForgotPasswordPending(false);
+
+    if (error) {
+      setForgotPasswordError(error.message);
+      return;
+    }
+
+    setForgotPasswordMessage(
+      "If an account exists for that email, a reset link has been sent.",
+    );
+  }
 
   async function handleLoginSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -115,20 +181,62 @@ export function AuthForm({ initialError }: AuthFormProps) {
   return (
     <div className="rounded-sm border border-neutral-200 bg-white p-6 shadow-sm sm:p-8">
       <p className="text-sm font-medium tracking-wide text-aviation-blue uppercase">
-        {isSignup ? "Create account" : "Sign in"}
+        {isSignup
+          ? "Create account"
+          : isForgotPassword
+            ? "Reset password"
+            : "Sign in"}
       </p>
       <h1 className="mt-2 text-2xl leading-tight">
         <span className="font-bold text-neutral-900">
-          {isSignup ? "Join Jet Operations" : "Welcome back"}
+          {isSignup
+            ? "Join Jet Operations"
+            : isForgotPassword
+              ? "Forgot your password?"
+              : "Welcome back"}
         </span>
       </h1>
       <p className="mt-3 text-sm leading-relaxed text-aviation-slate">
         {isSignup
           ? "Create an account with your invite code to upload flight plans and review analysed NOTAMs."
-          : "Sign in to continue to your organisation or personal workspace."}
+          : isForgotPassword
+            ? "Enter your email address and we will send you a link to choose a new password."
+            : "Sign in to continue to your organisation or personal workspace."}
       </p>
 
-      {isSignup ? (
+      {isForgotPassword ? (
+        <form onSubmit={handleForgotPasswordSubmit} className="mt-8 space-y-4">
+          <div className={fieldGroupClassName}>
+            <label htmlFor="email" className={labelClassName}>
+              Email
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              className={fieldClassName}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={pending}
+            className={`${signInClassName} w-full disabled:cursor-not-allowed disabled:opacity-60`}
+          >
+            {pending ? "Sending reset link..." : "Send reset link"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => switchMode("login")}
+            className="w-full text-sm font-medium text-aviation-navy transition-colors hover:text-aviation-blue"
+          >
+            Back to sign in
+          </button>
+        </form>
+      ) : isSignup ? (
         <form action={signupAction} className="mt-8 space-y-4">
           <div className={fieldGroupClassName}>
             <label htmlFor="email" className={labelClassName}>
@@ -154,6 +262,22 @@ export function AuthForm({ initialError }: AuthFormProps) {
               type="password"
               autoComplete="new-password"
               required
+              minLength={8}
+              className={fieldClassName}
+            />
+          </div>
+
+          <div className={fieldGroupClassName}>
+            <label htmlFor="confirm_password" className={labelClassName}>
+              Confirm password
+            </label>
+            <input
+              id="confirm_password"
+              name="confirm_password"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={8}
               className={fieldClassName}
             />
           </div>
@@ -231,6 +355,16 @@ export function AuthForm({ initialError }: AuthFormProps) {
             />
           </div>
 
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => switchMode("forgot-password")}
+              className="text-sm font-medium text-aviation-navy transition-colors hover:text-aviation-blue"
+            >
+              Forgot password?
+            </button>
+          </div>
+
           <button
             type="submit"
             disabled={pending}
@@ -250,37 +384,39 @@ export function AuthForm({ initialError }: AuthFormProps) {
         </p>
       ) : null}
 
-      {state.message ? (
+      {successMessage ? (
         <p className="mt-4 rounded-sm border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-          {state.message}
+          {successMessage}
         </p>
       ) : null}
 
-      <p className="mt-6 text-sm text-aviation-slate">
-        {isSignup ? (
-          <>
-            Already have an account?{" "}
-            <button
-              type="button"
-              onClick={() => setMode("login")}
-              className="font-medium text-aviation-navy transition-colors hover:text-aviation-blue"
-            >
-              Sign in
-            </button>
-          </>
-        ) : (
-          <>
-            Need an account?{" "}
-            <button
-              type="button"
-              onClick={() => setMode("signup")}
-              className="font-medium text-aviation-navy transition-colors hover:text-aviation-blue"
-            >
-              Create an account
-            </button>
-          </>
-        )}
-      </p>
+      {!isForgotPassword ? (
+        <p className="mt-6 text-sm text-aviation-slate">
+          {isSignup ? (
+            <>
+              Already have an account?{" "}
+              <button
+                type="button"
+                onClick={() => switchMode("login")}
+                className="font-medium text-aviation-navy transition-colors hover:text-aviation-blue"
+              >
+                Sign in
+              </button>
+            </>
+          ) : (
+            <>
+              Need an account?{" "}
+              <button
+                type="button"
+                onClick={() => switchMode("signup")}
+                className="font-medium text-aviation-navy transition-colors hover:text-aviation-blue"
+              >
+                Create an account
+              </button>
+            </>
+          )}
+        </p>
+      ) : null}
     </div>
   );
 }
