@@ -43,6 +43,72 @@ export const DISABLED_MEMBER_AUTH_ERROR = "disabled_access";
 export const DISABLED_MEMBER_MESSAGE =
   "Your account access has been disabled, please contact your system administrator";
 
+export const INVALID_RESET_LINK_MESSAGE =
+  "That password reset link is invalid or has expired. Request a new one from the sign-in page.";
+
+export const SIGN_IN_REQUIRED_MESSAGE =
+  "Sign in or use your password reset link before updating your password.";
+
+export const INVALID_RESET_LINK_AUTH_ERROR = "invalid_reset_link";
+
+const DEFAULT_PASSWORD_RESET_NEXT_PATH = "/auth/update-password";
+
+/**
+ * Returns whether Supabase rejected an auth link before a session was created.
+ */
+export function hasAuthLinkError(params: {
+  error?: string | null;
+  error_code?: string | null;
+}): boolean {
+  if (params.error === "access_denied") {
+    return true;
+  }
+
+  if (params.error_code === "otp_expired") {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Returns whether a URL hash fragment contains a rejected auth link.
+ */
+export function parseAuthLinkErrorFromHash(hash: string): boolean {
+  const hashParams = new URLSearchParams(
+    hash.startsWith("#") ? hash.slice(1) : hash,
+  );
+
+  return hasAuthLinkError({
+    error: hashParams.get("error"),
+    error_code: hashParams.get("error_code"),
+  });
+}
+
+/**
+ * Resolves the post-confirm destination for password reset links.
+ */
+export function resolvePasswordResetNextPath(
+  next: string | null | undefined,
+): string {
+  if (!next?.trim()) {
+    return DEFAULT_PASSWORD_RESET_NEXT_PATH;
+  }
+
+  const trimmed = next.trim();
+
+  if (trimmed.startsWith("/")) {
+    return trimmed;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return DEFAULT_PASSWORD_RESET_NEXT_PATH;
+  }
+}
+
 const ORGANISATION_ROUTE_PREFIXES = ["/app/callback", "/app/organisation"];
 const PERSONAL_ROUTE_PREFIXES = ["/app/personal"];
 
@@ -225,6 +291,38 @@ export function hasInviteAuthParams(params: InviteUrlParams): boolean {
 export type SignupCodeValidationResult =
   | { valid: true }
   | { valid: false; error: string };
+
+type PasswordValidationSuccess = {
+  valid: true;
+  password: string;
+};
+
+type PasswordValidationFailure = {
+  valid: false;
+  error: string;
+};
+
+export type PasswordValidationResult =
+  | PasswordValidationSuccess
+  | PasswordValidationFailure;
+
+/**
+ * Validates password and confirmation fields for signup and password updates.
+ */
+export function validatePasswordFields(
+  password: string,
+  confirmPassword: string,
+): PasswordValidationResult {
+  if (password.length < 8) {
+    return { valid: false, error: "Password must be at least 8 characters" };
+  }
+
+  if (password !== confirmPassword) {
+    return { valid: false, error: "Passwords do not match" };
+  }
+
+  return { valid: true, password };
+}
 
 /**
  * Verifies a closed-beta signup code with the JetOps API before registration.

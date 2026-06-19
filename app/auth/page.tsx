@@ -4,6 +4,9 @@ import { LandingHeader } from "@/components/landing-header";
 import {
   DISABLED_MEMBER_AUTH_ERROR,
   DISABLED_MEMBER_MESSAGE,
+  INVALID_RESET_LINK_AUTH_ERROR,
+  INVALID_RESET_LINK_MESSAGE,
+  SIGN_IN_REQUIRED_MESSAGE,
 } from "@/lib/auth";
 
 type AuthPageProps = {
@@ -15,7 +18,13 @@ type AuthPageProps = {
 export default async function AuthPage({ searchParams }: AuthPageProps) {
   const { error } = await searchParams;
   const initialError =
-    error === DISABLED_MEMBER_AUTH_ERROR ? DISABLED_MEMBER_MESSAGE : undefined;
+    error === DISABLED_MEMBER_AUTH_ERROR
+      ? DISABLED_MEMBER_MESSAGE
+      : error === INVALID_RESET_LINK_AUTH_ERROR
+        ? INVALID_RESET_LINK_MESSAGE
+        : error === "sign_in_required"
+          ? SIGN_IN_REQUIRED_MESSAGE
+          : undefined;
 
   return (
     <>

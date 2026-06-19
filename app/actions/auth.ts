@@ -6,6 +6,7 @@ import {
   getPostOnboardingPath,
   getRedirectForProfile,
   validateOnboardingFields,
+  validatePasswordFields,
   validateSignupCode,
 } from "@/lib/auth";
 import { getSiteUrl } from "@/lib/env";
@@ -31,15 +32,13 @@ export async function setPasswordForInvitedUser(
   _prevState: SetPasswordResult,
   formData: FormData,
 ): Promise<SetPasswordResult> {
-  const password = String(formData.get("password") ?? "");
-  const confirmPassword = String(formData.get("confirm_password") ?? "");
+  const passwordValidation = validatePasswordFields(
+    String(formData.get("password") ?? ""),
+    String(formData.get("confirm_password") ?? ""),
+  );
 
-  if (password.length < 8) {
-    return { error: "Password must be at least 8 characters" };
-  }
-
-  if (password !== confirmPassword) {
-    return { error: "Passwords do not match" };
+  if (!passwordValidation.valid) {
+    return { error: passwordValidation.error };
   }
 
   const supabase = await createClient();
@@ -51,7 +50,9 @@ export async function setPasswordForInvitedUser(
     return { error: "You must be signed in to set a password" };
   }
 
-  const { error: passwordError } = await supabase.auth.updateUser({ password });
+  const { error: passwordError } = await supabase.auth.updateUser({
+    password: passwordValidation.password,
+  });
 
   if (passwordError) {
     return { error: passwordError.message };
@@ -80,6 +81,52 @@ export async function setPasswordForInvitedUser(
 }
 
 /**
+ * Updates the signed-in user's password after a reset email link.
+ */
+export async function updatePassword(
+  _prevState: SetPasswordResult,
+  formData: FormData,
+): Promise<SetPasswordResult> {
+  const passwordValidation = validatePasswordFields(
+    String(formData.get("password") ?? ""),
+    String(formData.get("confirm_password") ?? ""),
+  );
+
+  if (!passwordValidation.valid) {
+    return { error: passwordValidation.error };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "You must be signed in to update your password" };
+  }
+
+  const { error: passwordError } = await supabase.auth.updateUser({
+    password: passwordValidation.password,
+  });
+
+  if (passwordError) {
+    return { error: passwordError.message };
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("f_name, l_initial, account_type")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile) {
+    return { error: "Profile not found" };
+  }
+
+  redirect(getRedirectForProfile(profile));
+}
+
+/**
  * Registers a new user and stores their account type in user metadata.
  */
 export async function signUp(
@@ -88,8 +135,15 @@ export async function signUp(
 ): Promise<AuthResult> {
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirm_password") ?? "");
   const accountType = String(formData.get("account_type") ?? "");
   const signupCode = String(formData.get("signup_code") ?? "");
+
+  const passwordValidation = validatePasswordFields(password, confirmPassword);
+
+  if (!passwordValidation.valid) {
+    return { error: passwordValidation.error };
+  }
 
   const signupCodeValidation = await validateSignupCode(signupCode);
 
@@ -100,7 +154,7 @@ export async function signUp(
   const supabase = await createClient();
   const { error } = await supabase.auth.signUp({
     email,
-    password,
+    password: passwordValidation.password,
     options: {
       emailRedirectTo: `${getSiteUrl()}/auth`,
       data: {

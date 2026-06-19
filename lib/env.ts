@@ -6,6 +6,13 @@ export function getSiteUrl(): string {
 }
 
 /**
+ * Returns the redirect URL used after a password reset email link is opened.
+ */
+export function getPasswordResetRedirectUrl(): string {
+  return `${getSiteUrl()}/auth/confirm?next=/auth/update-password`;
+}
+
+/**
  * Returns the JetOps jobs API base URL.
  */
 export function getJetOpsApiUrl(): string {
