@@ -257,7 +257,7 @@ Uses the organisation portal shell (`OrganisationAppShell`) via `flights/layout.
 1. Back link to the flights list and a status badge for the current job
 2. **Extraction progress** — shown while `processing_extraction`; step list with elapsed time
 3. **Flight details** — extracted fields in a portal card; editable at `awaiting_confirmation` with **Save changes** and **Confirm & analyse**
-4. **Analysis progress** — shown while `processing_analysis` or `retrying`; step list, elapsed time, NOTAM classification counts, and a note that analysis typically takes about 2 minutes
+4. **Analysis progress** — shown while `processing_analysis` or `retrying`; step list, elapsed time, NOTAM classification counts, and a note that analysis typically takes about 2 minutes. When status is `failed`, a failure message replaces the in-progress panel.
 5. **NOTAMs** — expandable table (NOTAM ID, colour-coded category pill, wrapped summary, chevron); multiple rows can be expanded; changing category filter collapses all rows; expanded detail shows Summary, Title, Q, A, B+C, F+G, D, E; category pills: 1 red, 2 orange, 3 blue; classified and failed rows include a feedback form (multiselect reason + required comment)
 
 **Data loading:**

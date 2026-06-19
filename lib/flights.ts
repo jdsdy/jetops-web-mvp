@@ -112,6 +112,7 @@ export const EXTRACTION_READY_JOB_STATUSES = [
 ] as const;
 
 export const ANALYSIS_FINISHED_JOB_STATUS = "finished";
+export const ANALYSIS_FAILED_JOB_STATUS = "failed";
 export const ANALYSIS_RETRYING_JOB_STATUS = "retrying";
 export const ANALYSIS_PARTIAL_FINISH_JOB_STATUS = "partial_finish";
 
@@ -120,6 +121,13 @@ export const ANALYSIS_PARTIAL_FINISH_JOB_STATUS = "partial_finish";
  */
 export function isAnalysisFinishedJobStatus(status: string): boolean {
   return status === ANALYSIS_FINISHED_JOB_STATUS;
+}
+
+/**
+ * Returns whether the analysis job failed and will not continue.
+ */
+export function isAnalysisFailedJobStatus(status: string): boolean {
+  return status === ANALYSIS_FAILED_JOB_STATUS;
 }
 
 /**

@@ -9,6 +9,7 @@ import {
   formatFlightExtractionDateTimeForDisplay,
   formatFlightExtractionDateTimeForInput,
   hasFlightExtractionChanges,
+  isAnalysisFailedJobStatus,
   isAnalysisFinishedJobStatus,
   isAnalysisInProgressJobStatus,
   isAnalysisJobPollingStatus,
@@ -121,6 +122,14 @@ describe("isAnalysisResultsReadyJobStatus", () => {
     expect(isAnalysisResultsReadyJobStatus("partial_finish")).toBe(true);
     expect(isAnalysisResultsReadyJobStatus("finished")).toBe(true);
     expect(isAnalysisResultsReadyJobStatus("processing_analysis")).toBe(false);
+  });
+});
+
+describe("isAnalysisFailedJobStatus", () => {
+  it("returns true only when the analysis job has failed", () => {
+    expect(isAnalysisFailedJobStatus("failed")).toBe(true);
+    expect(isAnalysisFailedJobStatus("processing_analysis")).toBe(false);
+    expect(isAnalysisFailedJobStatus("finished")).toBe(false);
   });
 });
 

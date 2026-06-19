@@ -8,6 +8,7 @@ type AnalysisProgressPhase = "extraction" | "analysis";
 
 type AnalysisProgressPanelProps = {
   phase: AnalysisProgressPhase;
+  failed?: boolean;
   totalNotams?: number;
   classifiedCount?: number;
   pendingCount?: number;
@@ -63,6 +64,7 @@ function buildProgressSteps(
  */
 export function AnalysisProgressPanel({
   phase,
+  failed = false,
   totalNotams = 0,
   classifiedCount = 0,
   pendingCount = 0,
@@ -70,11 +72,14 @@ export function AnalysisProgressPanel({
 }: AnalysisProgressPanelProps) {
   const [elapsedMs, setElapsedMs] = useState(0);
   const steps = buildProgressSteps(phase, classifiedCount, pendingCount);
-  const title =
-    phase === "extraction" ? "Extracting flight plan" : "NOTAM analysis in progress";
+  const title = failed
+    ? "Analysis failed"
+    : phase === "extraction"
+      ? "Extracting flight plan"
+      : "NOTAM analysis in progress";
 
   useEffect(() => {
-    if (!startedAt) {
+    if (failed || !startedAt) {
       setElapsedMs(0);
       return;
     }
@@ -89,10 +94,25 @@ export function AnalysisProgressPanel({
     return () => {
       clearInterval(intervalId);
     };
-  }, [startedAt]);
+  }, [failed, startedAt]);
 
   const showNotamProgress =
-    phase === "analysis" && totalNotams > 0 && (classifiedCount > 0 || pendingCount > 0);
+    !failed &&
+    phase === "analysis" &&
+    totalNotams > 0 &&
+    (classifiedCount > 0 || pendingCount > 0);
+
+  if (failed) {
+    return (
+      <div className={`${portalCardClassName} border-red-200 bg-red-50/40`}>
+        <h2 className="text-lg font-semibold text-red-900">{title}</h2>
+        <p className="mt-2 text-sm text-red-800">
+          Something went wrong while analysing your flight. Please try again
+          later.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={`${portalCardClassName} border-aviation-navy/15`}>

@@ -12,6 +12,7 @@ import {
   getFlightAnalysedNotamsSnapshot,
   getFlightExtractionResult,
   getRawNotamsForAnalysis,
+  isAnalysisFailedJobStatus,
   isAnalysisFinishedJobStatus,
   isAnalysisInProgressJobStatus,
   isAnalysisJobPollingStatus,
@@ -69,7 +70,8 @@ function applyAnalysedSnapshot(
 
   if (
     isAnalysisFinishedJobStatus(status) ||
-    isAnalysisPartialFinishJobStatus(status)
+    isAnalysisPartialFinishJobStatus(status) ||
+    isAnalysisFailedJobStatus(status)
   ) {
     setters.setAnalysisBegun(false);
   }
@@ -188,6 +190,10 @@ export function FlightExtractionDetailsSection({
         !analysisStartedAt
       ) {
         setAnalysisStartedAt(Date.now());
+      }
+
+      if (isAnalysisFailedJobStatus(nextStatus)) {
+        setAnalysisBegun(false);
       }
 
       if (
@@ -325,11 +331,16 @@ export function FlightExtractionDetailsSection({
 
   const showExtractionProgress = jobStatus === "processing_extraction";
 
+  const analysisFailed = isAnalysisFailedJobStatus(jobStatus);
+
   const showAnalysisInProgress =
     !showAnalysedNotams &&
+    !analysisFailed &&
     (analysisBegun ||
       isAnalysisInProgressJobStatus(jobStatus) ||
       isAnalysisRetryingJobStatus(jobStatus));
+
+  const showAnalysisFailed = !showAnalysedNotams && analysisFailed;
 
   const classifiedCount = analysedNotamGroups.reduce(
     (count, group) => count + group.notams.length,
@@ -369,7 +380,9 @@ export function FlightExtractionDetailsSection({
         />
       ) : null}
 
-      {showAnalysisInProgress ? (
+      {showAnalysisFailed ? (
+        <AnalysisProgressPanel phase="analysis" failed />
+      ) : showAnalysisInProgress ? (
         <AnalysisProgressPanel
           phase="analysis"
           startedAt={analysisStartedAt}
