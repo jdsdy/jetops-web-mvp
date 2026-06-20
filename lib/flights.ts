@@ -26,6 +26,11 @@ export type CreateFlightPayload = {
   flight_plan: File;
 };
 
+export type CreatePersonalFlightPayload = {
+  aircraft_id: string;
+  flight_plan: File;
+};
+
 type CreateFlightValidationSuccess = {
   valid: true;
   payload: CreateFlightPayload;
@@ -346,6 +351,24 @@ export type FlightAnalysisRequest = {
   flight_plan_id: string;
 };
 
+export type PersonalFlightAnalysisRequest = {
+  user_id: string;
+  flight_id: string;
+  job_id: string;
+  flight_plan_id: string;
+};
+
+export type JetOpsJobCreateRequest = {
+  user_id: string;
+  flight_id: string;
+  flight_plan_id: string;
+  storage_path: string;
+};
+
+export type FlightOwnershipScope =
+  | { organisationId: string }
+  | { userId: string };
+
 type FlightAnalysisRequestValidationSuccess = {
   valid: true;
   jobId: string;
@@ -384,7 +407,7 @@ export function validateFlightAnalysisRequestPayload(
 }
 
 /**
- * Builds the JetOps analysis request body.
+ * Builds the JetOps analysis request body for organisation flights.
  */
 export function buildFlightAnalysisRequestBody(
   organisationId: string,
@@ -398,6 +421,32 @@ export function buildFlightAnalysisRequestBody(
     job_id: jobId,
     flight_plan_id: flightPlanId,
   };
+}
+
+/**
+ * Builds the JetOps analysis request body for personal flights.
+ */
+export function buildFlightAnalysisRequestBodyForUser(
+  userId: string,
+  flightId: string,
+  jobId: string,
+  flightPlanId: string,
+): PersonalFlightAnalysisRequest {
+  return {
+    user_id: userId,
+    flight_id: flightId,
+    job_id: jobId,
+    flight_plan_id: flightPlanId,
+  };
+}
+
+/**
+ * Builds the JetOps job create request body for personal flights.
+ */
+export function buildJetOpsJobCreateBody(
+  payload: JetOpsJobCreateRequest,
+): JetOpsJobCreateRequest {
+  return payload;
 }
 
 export type FlightAnalysisBegunResponse = {
@@ -637,12 +686,12 @@ type FlightRow = {
  * Builds the storage object path for an uploaded flight plan PDF.
  */
 export function buildFlightPlanStoragePath(
-  organisationId: string,
+  ownerId: string,
   flightId: string,
   flightPlanId: string,
   filename: string,
 ): string {
-  return `${organisationId}/${flightId}/${flightPlanId}/${filename}`;
+  return `${ownerId}/${flightId}/${flightPlanId}/${filename}`;
 }
 
 /**
@@ -817,6 +866,63 @@ export function validateCreateFlightFormData(
   };
 }
 
+type CreatePersonalFlightValidationSuccess = {
+  valid: true;
+  payload: CreatePersonalFlightPayload;
+};
+
+type CreatePersonalFlightValidationFailure = {
+  valid: false;
+  error: string;
+};
+
+export type CreatePersonalFlightValidationResult =
+  | CreatePersonalFlightValidationSuccess
+  | CreatePersonalFlightValidationFailure;
+
+/**
+ * Validates multipart form data for creating a personal flight with a PDF upload.
+ */
+export function validateCreatePersonalFlightFormData(
+  formData: FormData,
+): CreatePersonalFlightValidationResult {
+  const aircraftId = String(formData.get("aircraft_id") ?? "").trim();
+  const flightPlan = formData.get("flight_plan");
+
+  if (!aircraftId) {
+    return { valid: false, error: "Aircraft is required" };
+  }
+
+  if (!UUID_PATTERN.test(aircraftId)) {
+    return { valid: false, error: "Aircraft is invalid" };
+  }
+
+  if (!(flightPlan instanceof File) || flightPlan.size === 0) {
+    return { valid: false, error: "Flight plan PDF is required" };
+  }
+
+  const isPdfMime =
+    flightPlan.type === "application/pdf" ||
+    flightPlan.type === "application/x-pdf";
+  const isPdfName = flightPlan.name.toLowerCase().endsWith(".pdf");
+
+  if (!isPdfMime && !isPdfName) {
+    return { valid: false, error: "Flight plan must be a PDF file" };
+  }
+
+  if (flightPlan.size > MAX_FLIGHT_PLAN_BYTES) {
+    return { valid: false, error: "Flight plan must be 10MB or smaller" };
+  }
+
+  return {
+    valid: true,
+    payload: {
+      aircraft_id: aircraftId,
+      flight_plan: flightPlan,
+    },
+  };
+}
+
 /**
  * Loads organisation flights with current plan analysis status for navigation.
  */
@@ -838,20 +944,44 @@ export async function getOrganisationFlights(
 }
 
 /**
+ * Loads personal flights with current plan analysis status for navigation.
+ */
+export async function getPersonalFlights(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<OrganisationFlightListItem[]> {
+  const { data, error } = await supabase
+    .from("flights")
+    .select(FLIGHT_LIST_SELECT)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return (data as FlightRow[]).map(mapFlightRow);
+}
+
+/**
  * Loads extracted flight and plan fields plus the current plan id.
  */
 export async function getFlightExtractionResult(
   supabase: SupabaseClient,
   flightId: string,
-  organisationId?: string,
+  scope?: FlightOwnershipScope,
 ): Promise<FlightExtractionResult | null> {
   let query = supabase
     .from("flights")
     .select(FLIGHT_EXTRACTION_SELECT)
     .eq("id", flightId);
 
-  if (organisationId) {
-    query = query.eq("organisation_id", organisationId);
+  if (scope && "organisationId" in scope) {
+    query = query.eq("organisation_id", scope.organisationId);
+  }
+
+  if (scope && "userId" in scope) {
+    query = query.eq("user_id", scope.userId);
   }
 
   const { data, error } = await query.maybeSingle();
@@ -869,12 +999,12 @@ export async function getFlightExtractionResult(
 export async function getFlightExtractionDetails(
   supabase: SupabaseClient,
   flightId: string,
-  organisationId?: string,
+  scope?: FlightOwnershipScope,
 ): Promise<FlightExtractionDetails | null> {
   const result = await getFlightExtractionResult(
     supabase,
     flightId,
-    organisationId,
+    scope,
   );
 
   return result?.details ?? null;

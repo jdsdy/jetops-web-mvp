@@ -272,6 +272,10 @@ Uses the organisation portal shell (`OrganisationAppShell`) via `flights/layout.
 - When `analysis_jobs.status` is `retrying`, `partial_finish`, or `finished`, analysed NOTAMs are loaded from `analysed_notams` (joined to `raw_notams`); `retrying` refreshes partial results and shows pending count; `partial_finish` also includes failed and unclassified NOTAMs
 - Multiline NOTAM fields render `{\n}` placeholders as line breaks in expanded rows
 
+## Personal accounts
+
+Personal flights use the same analysis UI and domain helpers, scoped by `user_id`. See [personal-app.md](./personal-app.md) for routes, API paths, storage layout (`{user_id}/…`), and JetOps payloads with `user_id` instead of `organisation_id`.
+
 ## Tests
 
 Helpers are covered in `tests/lib/flights.test.ts` and `tests/lib/notam-feedback.test.ts`.

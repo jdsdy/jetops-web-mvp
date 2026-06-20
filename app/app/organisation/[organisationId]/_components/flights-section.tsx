@@ -12,20 +12,22 @@ import type { OrganisationFlightListItem } from "@/lib/flights";
 import type { OrganisationMember } from "@/lib/organisation";
 
 type FlightsSectionProps = {
-  organisationId: string;
+  analysisPageBasePath: string;
+  createFlightApiPath: string;
   flights: OrganisationFlightListItem[];
   aircraft: FleetAircraftListItem[];
-  members: OrganisationMember[];
+  members?: OrganisationMember[];
 };
 
 /**
  * Flights list with modal-based flight creation.
  */
 export function FlightsSection({
-  organisationId,
+  analysisPageBasePath,
+  createFlightApiPath,
   flights,
   aircraft,
-  members,
+  members = [],
 }: FlightsSectionProps) {
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -41,10 +43,11 @@ export function FlightsSection({
         }
       />
 
-      <FlightsList organisationId={organisationId} flights={flights} />
+      <FlightsList analysisPageBasePath={analysisPageBasePath} flights={flights} />
 
       <CreateFlightSection
-        organisationId={organisationId}
+        createFlightApiPath={createFlightApiPath}
+        analysisPageBasePath={analysisPageBasePath}
         aircraft={aircraft}
         members={members}
         open={createOpen}

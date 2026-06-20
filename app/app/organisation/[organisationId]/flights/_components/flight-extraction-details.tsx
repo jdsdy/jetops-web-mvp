@@ -32,7 +32,7 @@ import { createClient } from "@/lib/supabase/client";
 const JOB_STATUS_POLL_INTERVAL_MS = 3000;
 
 type FlightExtractionDetailsProps = {
-  organisationId: string;
+  flightsApiBasePath: string;
   flightId: string;
   flightPlanId: string;
   initialDetails: FlightExtractionDetails;
@@ -81,7 +81,7 @@ function applyAnalysedSnapshot(
  * Tracks analysis job status and loads extracted fields once extraction completes.
  */
 export function FlightExtractionDetailsSection({
-  organisationId,
+  flightsApiBasePath,
   flightId,
   flightPlanId: initialFlightPlanId,
   initialDetails,
@@ -241,7 +241,7 @@ export function FlightExtractionDetailsSection({
       try {
         const params = new URLSearchParams({ jobId });
         const response = await fetch(
-          `/api/organisations/${encodeURIComponent(organisationId)}/flights/${encodeURIComponent(flightId)}?${params.toString()}`,
+          `${flightsApiBasePath}/${encodeURIComponent(flightId)}?${params.toString()}`,
         );
 
         if (!response.ok) {
@@ -306,7 +306,7 @@ export function FlightExtractionDetailsSection({
       }
     };
   }, [
-    organisationId,
+    flightsApiBasePath,
     flightId,
     jobId,
     handleJobStatus,
@@ -365,7 +365,7 @@ export function FlightExtractionDetailsSection({
 
       {showExtraction ? (
         <FlightExtractionForm
-          organisationId={organisationId}
+          flightsApiBasePath={flightsApiBasePath}
           flightId={flightId}
           flightPlanId={flightPlanId}
           jobId={jobId}
@@ -394,7 +394,7 @@ export function FlightExtractionDetailsSection({
 
       {showAnalysedNotams ? (
         <AnalysedNotamsList
-          organisationId={organisationId}
+          flightsApiBasePath={flightsApiBasePath}
           flightId={flightId}
           flightPlanId={flightPlanId}
           groups={analysedNotamGroups}

@@ -12,13 +12,10 @@ import {
   type FlightAnalysedNotamsSnapshot,
   type RawNotam,
 } from "@/lib/flights";
-import { getOrganisationAppPath } from "@/lib/organisation";
+import { getPersonalAppPath } from "@/lib/personal";
 import { createClient } from "@/lib/supabase/server";
 
-type OrganisationFlightsPageProps = {
-  params: Promise<{
-    organisationId: string;
-  }>;
+type PersonalFlightsPageProps = {
   searchParams: Promise<{
     id?: string;
     jobId?: string;
@@ -26,25 +23,27 @@ type OrganisationFlightsPageProps = {
 };
 
 /**
- * Flight analysis page for reviewing extraction and NOTAM results.
+ * Personal flight analysis page for reviewing extraction and NOTAM results.
  */
-export default async function OrganisationFlightsPage({
-  params,
+export default async function PersonalFlightsPage({
   searchParams,
-}: OrganisationFlightsPageProps) {
-  const { organisationId } = await params;
+}: PersonalFlightsPageProps) {
   const { id: flightId, jobId } = await searchParams;
-  const appHomePath = getOrganisationAppPath(organisationId);
+  const appHomePath = getPersonalAppPath();
 
   if (!flightId || !jobId) {
     redirect(appHomePath);
   }
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const extractionResult = await getFlightExtractionResult(
     supabase,
     flightId,
-    { organisationId },
+    { userId: user!.id },
   );
 
   if (!extractionResult) {
@@ -87,7 +86,7 @@ export default async function OrganisationFlightsPage({
 
   return (
     <FlightExtractionDetailsSection
-      flightsApiBasePath={`/api/organisations/${organisationId}/flights`}
+      flightsApiBasePath="/api/personal/flights"
       flightId={flightId}
       flightPlanId={analysisJob.flightPlanId}
       jobId={jobId}

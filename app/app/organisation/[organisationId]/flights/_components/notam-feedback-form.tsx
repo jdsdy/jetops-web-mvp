@@ -15,7 +15,7 @@ import {
 } from "@/lib/notam-feedback";
 
 type NotamFeedbackFormProps = {
-  organisationId: string;
+  flightsApiBasePath: string;
   flightId: string;
   flightPlanId: string;
   analysedNotamId: number;
@@ -29,7 +29,7 @@ type ApiErrorResponse = {
  * Collects multiselect reasons and a required comment for an analysed NOTAM.
  */
 export function NotamFeedbackForm({
-  organisationId,
+  flightsApiBasePath,
   flightId,
   flightPlanId,
   analysedNotamId,
@@ -60,7 +60,7 @@ export function NotamFeedbackForm({
 
     try {
       const response = await fetch(
-        `/api/organisations/${encodeURIComponent(organisationId)}/flights/${encodeURIComponent(flightId)}/notam-feedback`,
+        `${flightsApiBasePath}/${encodeURIComponent(flightId)}/notam-feedback`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -51,9 +51,11 @@ The Jet Ops MVP project URL is `https://wohclkrdcyykdjqzczgy.supabase.co`.
 1. User submits email and password on `/auth` (browser Supabase client).
 2. On success, the client sends the session JWT to `POST /api/invites/consume-cookie`.
 3. If an invite cookie is present and valid, the API accepts the invitation atomically. On definitive failure the client signs the user out and shows an expired-invite message.
-4. On success, the client redirects:
+4. On success, the client loads the profile and redirects via `getRedirectForProfile`:
    - `has_set_password === false` → `/auth/set-password` (invited users)
-   - Otherwise → `/app/callback` for organisation accounts (membership resolution; disabled users are signed out) or the profile-based destination for personal accounts
+   - Incomplete onboarding → `/onboarding`
+   - `organisation` account → `/app/callback`
+   - `personal` account → `/app/personal`
 
 Invited users set a permanent password on `/auth/set-password`, then continue to `/app/callback`.
 

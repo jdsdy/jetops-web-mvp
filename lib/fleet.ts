@@ -482,6 +482,28 @@ export async function getOrganisationFleet(
 }
 
 /**
+ * Loads a personal user's fleet aircraft for display.
+ */
+export async function getPersonalFleet(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<FleetAircraftListItem[]> {
+  const { data, error } = await supabase
+    .from("fleet_aircraft")
+    .select(FLEET_LIST_SELECT)
+    .eq("user_id", userId)
+    .order("manufacturer", { ascending: true })
+    .order("model", { ascending: true })
+    .order("tail_number", { ascending: true });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data;
+}
+
+/**
  * Ensures the user is an active member of the organisation identified by id.
  */
 export async function requireActiveOrganisationMember(

@@ -21,7 +21,7 @@ import {
 } from "@/lib/flights";
 
 type FlightExtractionFormProps = {
-  organisationId: string;
+  flightsApiBasePath: string;
   flightId: string;
   flightPlanId: string;
   jobId: string;
@@ -95,7 +95,7 @@ function getDraftFieldValue(
  * Displays extracted flight plan fields with optional editing and save actions.
  */
 export function FlightExtractionForm({
-  organisationId,
+  flightsApiBasePath,
   flightId,
   flightPlanId,
   jobId,
@@ -148,9 +148,7 @@ export function FlightExtractionForm({
     setSavePending(true);
     setSaveError(null);
 
-    const response = await fetch(
-      `/api/organisations/${organisationId}/flights/${flightId}`,
-      {
+    const response = await fetch(`${flightsApiBasePath}/${flightId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -159,8 +157,7 @@ export function FlightExtractionForm({
           job_id: jobId,
           ...draftDetails,
         }),
-      },
-    );
+      });
     const result: unknown = await response.json();
 
     if (!response.ok) {
@@ -183,9 +180,7 @@ export function FlightExtractionForm({
     setAnalysePending(true);
     setAnalyseError(null);
 
-    const response = await fetch(
-      `/api/organisations/${organisationId}/flights/${flightId}/analysis`,
-      {
+    const response = await fetch(`${flightsApiBasePath}/${flightId}/analysis`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -193,8 +188,7 @@ export function FlightExtractionForm({
         body: JSON.stringify({
           job_id: jobId,
         }),
-      },
-    );
+      });
     const result: unknown = await response.json();
 
     if (!response.ok) {

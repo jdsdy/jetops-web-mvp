@@ -27,7 +27,8 @@ export default async function OrganisationFlightsPage({
 
   return (
     <FlightsSection
-      organisationId={organisationId}
+      analysisPageBasePath={`/app/organisation/${organisationId}/flights`}
+      createFlightApiPath={`/api/organisations/${organisationId}/flights`}
       flights={flights}
       aircraft={aircraft}
       members={members}
