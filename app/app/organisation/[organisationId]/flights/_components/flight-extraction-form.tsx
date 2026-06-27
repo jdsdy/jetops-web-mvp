@@ -75,6 +75,41 @@ function formatExtractedValue(
 }
 
 /**
+ * Splits a route string into individual waypoint tokens.
+ */
+function parseRouteWaypoints(route: string | null): string[] {
+  if (!route?.trim()) {
+    return [];
+  }
+
+  return route.trim().split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Displays route waypoints as simple grey pills.
+ */
+function RouteWaypointPills({ route }: { route: string | null }) {
+  const waypoints = parseRouteWaypoints(route);
+
+  if (waypoints.length === 0) {
+    return <>—</>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {waypoints.map((waypoint, index) => (
+        <span
+          key={`${waypoint}-${index}`}
+          className="inline-flex rounded-md shadow-md bg-neutral-200 px-2 py-0.5 text-sm text-neutral-900"
+        >
+          {waypoint}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Returns the input value for a draft extraction field.
  */
 function getDraftFieldValue(
@@ -288,7 +323,11 @@ export function FlightExtractionForm({
                 {label}
               </dt>
               <dd className="mt-1 text-sm text-neutral-900">
-                {formatExtractedValue(savedDetails[key], inputType)}
+                {key === "route" ? (
+                  <RouteWaypointPills route={savedDetails.route} />
+                ) : (
+                  formatExtractedValue(savedDetails[key], inputType)
+                )}
               </dd>
             </div>
           ))}
