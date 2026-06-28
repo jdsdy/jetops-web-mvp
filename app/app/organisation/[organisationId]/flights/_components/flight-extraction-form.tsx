@@ -21,7 +21,7 @@ import {
 } from "@/lib/flights";
 
 type FlightExtractionFormProps = {
-  organisationId: string;
+  flightsApiBasePath: string;
   flightId: string;
   flightPlanId: string;
   jobId: string;
@@ -75,6 +75,41 @@ function formatExtractedValue(
 }
 
 /**
+ * Splits a route string into individual waypoint tokens.
+ */
+function parseRouteWaypoints(route: string | null): string[] {
+  if (!route?.trim()) {
+    return [];
+  }
+
+  return route.trim().split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Displays route waypoints as simple grey pills.
+ */
+function RouteWaypointPills({ route }: { route: string | null }) {
+  const waypoints = parseRouteWaypoints(route);
+
+  if (waypoints.length === 0) {
+    return <>—</>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {waypoints.map((waypoint, index) => (
+        <span
+          key={`${waypoint}-${index}`}
+          className="inline-flex rounded-md shadow-md bg-neutral-200 px-2 py-0.5 text-sm text-neutral-900"
+        >
+          {waypoint}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Returns the input value for a draft extraction field.
  */
 function getDraftFieldValue(
@@ -95,7 +130,7 @@ function getDraftFieldValue(
  * Displays extracted flight plan fields with optional editing and save actions.
  */
 export function FlightExtractionForm({
-  organisationId,
+  flightsApiBasePath,
   flightId,
   flightPlanId,
   jobId,
@@ -148,9 +183,7 @@ export function FlightExtractionForm({
     setSavePending(true);
     setSaveError(null);
 
-    const response = await fetch(
-      `/api/organisations/${organisationId}/flights/${flightId}`,
-      {
+    const response = await fetch(`${flightsApiBasePath}/${flightId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -159,8 +192,7 @@ export function FlightExtractionForm({
           job_id: jobId,
           ...draftDetails,
         }),
-      },
-    );
+      });
     const result: unknown = await response.json();
 
     if (!response.ok) {
@@ -183,9 +215,7 @@ export function FlightExtractionForm({
     setAnalysePending(true);
     setAnalyseError(null);
 
-    const response = await fetch(
-      `/api/organisations/${organisationId}/flights/${flightId}/analysis`,
-      {
+    const response = await fetch(`${flightsApiBasePath}/${flightId}/analysis`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -193,8 +223,7 @@ export function FlightExtractionForm({
         body: JSON.stringify({
           job_id: jobId,
         }),
-      },
-    );
+      });
     const result: unknown = await response.json();
 
     if (!response.ok) {
@@ -294,7 +323,11 @@ export function FlightExtractionForm({
                 {label}
               </dt>
               <dd className="mt-1 text-sm text-neutral-900">
-                {formatExtractedValue(savedDetails[key], inputType)}
+                {key === "route" ? (
+                  <RouteWaypointPills route={savedDetails.route} />
+                ) : (
+                  formatExtractedValue(savedDetails[key], inputType)
+                )}
               </dd>
             </div>
           ))}

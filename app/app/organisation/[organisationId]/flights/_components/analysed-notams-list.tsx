@@ -26,7 +26,7 @@ import type {
 } from "@/lib/flights";
 
 type AnalysedNotamsListProps = {
-  organisationId: string;
+  flightsApiBasePath: string;
   flightId: string;
   flightPlanId: string;
   groups: AnalysedNotamCategoryGroup[];
@@ -158,12 +158,12 @@ function toggleExpandedRowKey(
  */
 function NotamExpandedContent({
   row,
-  organisationId,
+  flightsApiBasePath,
   flightId,
   flightPlanId,
 }: {
   row: NotamTableRow;
-  organisationId: string;
+  flightsApiBasePath: string;
   flightId: string;
   flightPlanId: string;
 }) {
@@ -175,7 +175,7 @@ function NotamExpandedContent({
       />
       {row.analysedNotamId ? (
         <NotamFeedbackForm
-          organisationId={organisationId}
+          flightsApiBasePath={flightsApiBasePath}
           flightId={flightId}
           flightPlanId={flightPlanId}
           analysedNotamId={row.analysedNotamId}
@@ -189,7 +189,7 @@ function NotamExpandedContent({
  * Expandable NOTAM table with category filtering.
  */
 export function AnalysedNotamsList({
-  organisationId,
+  flightsApiBasePath,
   flightId,
   flightPlanId,
   groups,
@@ -329,7 +329,7 @@ export function AnalysedNotamsList({
                     <div className="border-t border-neutral-200 bg-neutral-50 px-1 py-4">
                       <NotamExpandedContent
                         row={row}
-                        organisationId={organisationId}
+                        flightsApiBasePath={flightsApiBasePath}
                         flightId={flightId}
                         flightPlanId={flightPlanId}
                       />
@@ -391,7 +391,7 @@ export function AnalysedNotamsList({
                           <td colSpan={4} className="px-4 py-4">
                             <NotamExpandedContent
                               row={row}
-                              organisationId={organisationId}
+                              flightsApiBasePath={flightsApiBasePath}
                               flightId={flightId}
                               flightPlanId={flightPlanId}
                             />

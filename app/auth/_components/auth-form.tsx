@@ -5,7 +5,7 @@ import { useActionState, useState } from "react";
 
 import { signUp } from "@/app/actions/auth";
 import { signInClassName } from "@/components/landing-header";
-import { ACCOUNT_TYPES } from "@/lib/auth";
+import { ACCOUNT_TYPES, getRedirectForProfile } from "@/lib/auth";
 import { getPasswordResetRedirectUrl } from "@/lib/env";
 import {
   INVITE_EXPIRED_CONTACT_ADMIN_MESSAGE,
@@ -171,7 +171,15 @@ export function AuthForm({ initialError }: AuthFormProps) {
         return;
       }
 
-      router.push("/app/callback");
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("f_name, l_initial, account_type")
+        .eq("id", signInData.user.id)
+        .single();
+
+      router.push(
+        profile ? getRedirectForProfile(profile) : "/onboarding",
+      );
     } catch {
       setLoginError(INVITE_TRANSIENT_ERROR_MESSAGE);
       setLoginPending(false);

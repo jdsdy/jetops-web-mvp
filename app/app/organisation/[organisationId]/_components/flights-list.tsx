@@ -15,7 +15,7 @@ import { formatPortalDate } from "@/lib/format";
 import type { OrganisationFlightListItem } from "@/lib/flights";
 
 type FlightsListProps = {
-  organisationId: string;
+  analysisPageBasePath: string;
   flights: OrganisationFlightListItem[];
 };
 
@@ -51,20 +51,20 @@ function formatAircraft(flight: OrganisationFlightListItem): string {
  * Builds the flight status page URL when an analysis job exists.
  */
 function buildFlightPageHref(
-  organisationId: string,
+  analysisPageBasePath: string,
   flight: OrganisationFlightListItem,
 ): string | null {
   if (!flight.job_id) {
     return null;
   }
 
-  return `/app/organisation/${organisationId}/flights?id=${flight.id}&jobId=${flight.job_id}`;
+  return `${analysisPageBasePath}?id=${flight.id}&jobId=${flight.job_id}`;
 }
 
 /**
- * Displays organisation flights in a table with links to the analysis page.
+ * Displays flights in a table with links to the analysis page.
  */
-export function FlightsList({ organisationId, flights }: FlightsListProps) {
+export function FlightsList({ analysisPageBasePath, flights }: FlightsListProps) {
   const router = useRouter();
 
   if (flights.length === 0) {
@@ -93,7 +93,7 @@ export function FlightsList({ organisationId, flights }: FlightsListProps) {
         </thead>
         <tbody className={portalTableBodyClassName}>
           {flights.map((flight) => {
-            const href = buildFlightPageHref(organisationId, flight);
+            const href = buildFlightPageHref(analysisPageBasePath, flight);
             const status = flight.job_status ?? flight.status ?? "Unknown";
 
             return (

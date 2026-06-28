@@ -28,8 +28,8 @@ import {
 } from "@/app/app/organisation/[organisationId]/_components/custom-aircraft-fields";
 
 type FleetSectionProps = {
-  organisationId: string;
-  isAdmin: boolean;
+  fleetApiBasePath: string;
+  canManageFleet: boolean;
   initialFleet?: FleetAircraftListItem[];
 };
 
@@ -41,8 +41,8 @@ type ApiErrorResponse = {
  * Displays an organisation fleet and lets admins add and manage aircraft.
  */
 export function FleetSection({
-  organisationId,
-  isAdmin,
+  fleetApiBasePath,
+  canManageFleet,
   initialFleet,
 }: FleetSectionProps) {
   const [fleet, setFleet] = useState<FleetAircraftListItem[]>(initialFleet ?? []);
@@ -80,7 +80,7 @@ export function FleetSection({
   );
 
   const loadFleet = useCallback(async () => {
-    const response = await fetch(`/api/organisations/${organisationId}/fleet`);
+    const response = await fetch(fleetApiBasePath);
     const result = (await response.json()) as
       | FleetAircraftListItem[]
       | ApiErrorResponse;
@@ -96,7 +96,7 @@ export function FleetSection({
 
     setFleet(Array.isArray(result) ? result : []);
     return true;
-  }, [organisationId]);
+  }, [fleetApiBasePath]);
 
   const loadReferenceData = useCallback(async () => {
     const response = await fetch("/api/aircraft-reference");
@@ -126,7 +126,7 @@ export function FleetSection({
       setError(null);
 
       await loadFleet();
-      if (isAdmin) {
+      if (canManageFleet) {
         await loadReferenceData();
       }
 
@@ -134,7 +134,7 @@ export function FleetSection({
     }
 
     void loadInitialData();
-  }, [initialFleet, isAdmin, loadFleet, loadReferenceData]);
+  }, [initialFleet, canManageFleet, loadFleet, loadReferenceData]);
 
   function openManageDialog(aircraft: FleetAircraftListItem) {
     setManagedAircraft(aircraft);
@@ -213,7 +213,7 @@ export function FleetSection({
       return;
     }
 
-    const response = await fetch(`/api/organisations/${organisationId}/fleet`, {
+    const response = await fetch(fleetApiBasePath, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestBody),
@@ -246,7 +246,7 @@ export function FleetSection({
     setMessage(null);
 
     const response = await fetch(
-      `/api/organisations/${organisationId}/fleet/${managedAircraft.id}`,
+      `${fleetApiBasePath}/${managedAircraft.id}`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -282,7 +282,7 @@ export function FleetSection({
     setMessage(null);
 
     const response = await fetch(
-      `/api/organisations/${organisationId}/fleet/${managedAircraft.id}`,
+      `${fleetApiBasePath}/${managedAircraft.id}`,
       {
         method: "DELETE",
       },
@@ -307,7 +307,7 @@ export function FleetSection({
         title="Fleet"
         description="Organisation aircraft available for flight planning."
         action={
-          isAdmin ? (
+          canManageFleet ? (
             <PortalButton onClick={() => setAddOpen(true)}>
               + Add aircraft
             </PortalButton>
@@ -337,7 +337,7 @@ export function FleetSection({
                   </p>
                   <p className="mt-1 text-sm text-aviation-slate">{aircraft.model}</p>
                 </div>
-                {isAdmin ? (
+                {canManageFleet ? (
                   <button
                     type="button"
                     onClick={() => openManageDialog(aircraft)}
@@ -369,7 +369,7 @@ export function FleetSection({
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-aviation-slate">
                     RNAV
                   </th>
-                  {isAdmin ? (
+                  {canManageFleet ? (
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-aviation-slate">
                       Actions
                     </th>
@@ -386,7 +386,7 @@ export function FleetSection({
                     <td className={portalTdClassName}>
                       {aircraft.rnav_equipped ? "Yes" : "No"}
                     </td>
-                    {isAdmin ? (
+                    {canManageFleet ? (
                       <td className={portalTdClassName}>
                         <button
                           type="button"
@@ -405,7 +405,7 @@ export function FleetSection({
         </>
       )}
 
-      {isAdmin ? (
+                  {canManageFleet ? (
         <>
           <Modal
             open={manageOpen}

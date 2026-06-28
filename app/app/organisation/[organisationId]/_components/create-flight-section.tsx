@@ -15,9 +15,10 @@ import type { FleetAircraftListItem } from "@/lib/fleet";
 import type { OrganisationMember } from "@/lib/organisation";
 
 type CreateFlightSectionProps = {
-  organisationId: string;
+  createFlightApiPath: string;
+  analysisPageBasePath: string;
   aircraft: FleetAircraftListItem[];
-  members: OrganisationMember[];
+  members?: OrganisationMember[];
   open: boolean;
   onClose: () => void;
 };
@@ -46,9 +47,10 @@ function isCreateFlightResponse(body: unknown): body is CreateFlightResponse {
  * Lets organisation members create a flight with a PDF flight plan upload.
  */
 export function CreateFlightSection({
-  organisationId,
+  createFlightApiPath,
+  analysisPageBasePath,
   aircraft,
-  members,
+  members = [],
   open,
   onClose,
 }: CreateFlightSectionProps) {
@@ -84,10 +86,12 @@ export function CreateFlightSection({
 
     const formData = new FormData();
     formData.set("aircraft_id", aircraftId);
-    formData.set("pic_user_id", picUserId);
+    if (members.length > 0) {
+      formData.set("pic_user_id", picUserId);
+    }
     formData.set("flight_plan", flightPlanFile);
 
-    const response = await fetch(`/api/organisations/${organisationId}/flights`, {
+    const response = await fetch(createFlightApiPath, {
       method: "POST",
       body: formData,
     });
@@ -107,7 +111,7 @@ export function CreateFlightSection({
     }
 
     router.push(
-      `/app/organisation/${organisationId}/flights?id=${result.flight_id}&jobId=${result.job_id}`,
+      `${analysisPageBasePath}?id=${result.flight_id}&jobId=${result.job_id}`,
     );
   }
 
@@ -154,25 +158,27 @@ export function CreateFlightSection({
           </select>
         </div>
 
-        <div className={portalFieldGroupClassName}>
-          <label htmlFor="pic_user_id" className={portalLabelClassName}>
-            PIC
-          </label>
-          <select
-            id="pic_user_id"
-            value={picUserId}
-            onChange={(event) => setPicUserId(event.target.value)}
-            required
-            className={portalFieldClassName}
-          >
-            <option value="">Select PIC</option>
-            {members.map((member) => (
-              <option key={member.user_id} value={member.user_id}>
-                {member.display_name ?? "Unknown"} — {member.role}
-              </option>
-            ))}
-          </select>
-        </div>
+        {members.length > 0 ? (
+          <div className={portalFieldGroupClassName}>
+            <label htmlFor="pic_user_id" className={portalLabelClassName}>
+              PIC
+            </label>
+            <select
+              id="pic_user_id"
+              value={picUserId}
+              onChange={(event) => setPicUserId(event.target.value)}
+              required
+              className={portalFieldClassName}
+            >
+              <option value="">Select PIC</option>
+              {members.map((member) => (
+                <option key={member.user_id} value={member.user_id}>
+                  {member.display_name ?? "Unknown"} — {member.role}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
 
         <div className={portalFieldGroupClassName}>
           <label htmlFor="flight_plan" className={portalLabelClassName}>

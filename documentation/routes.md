@@ -10,7 +10,9 @@
 | `/auth/accept-invite` | No | Invite link; client calls `POST /api/invites/store-cookie`, then redirects to `/auth` |
 | `/auth/set-password` | Yes | Forced password reset for invited users after first sign-in |
 | `/auth/update-password` | Yes (after reset link) | Self-service password reset after email link |
-| `/app/personal` | Yes (personal) | Unavailable notice and sign out |
+| `/app/personal` | Yes (personal) | Flights list and create-flight form |
+| `/app/personal/fleet` | Yes (personal) | Personal fleet management |
+| `/app/personal/flights` | Yes (personal) | Flight analysis status page (`?id=` and `?jobId=` required) |
 | `/app/organisation` | Yes (organisation) | Redirects to `/app/organisation/{organisationId}` for active members |
 | `/app/organisation/{organisationId}` | Yes (organisation) | Organisation CRM home: members, fleet, flights |
 | `/app/organisation/{organisationId}/flights` | Yes (organisation) | Flight analysis status page (`?id=` and `?jobId=` required) |
@@ -77,4 +79,18 @@ Organisation management APIs live under `/api/organisations/{organisationId}/`. 
 | `POST` | `/api/invites/store-cookie` | Store HttpOnly invite cookie for accept-invite link |
 | `POST` | `/api/invites/consume-cookie` | Consume invite cookie after sign-in |
 
-See [organisation-members.md](./organisation-members.md), [organisation-invites.md](./organisation-invites.md), [fleet.md](./fleet.md), [flights.md](./flights.md), and [api-logging.md](./api-logging.md).
+Personal APIs live under `/api/personal/` (see [personal-app.md](./personal-app.md)):
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/personal/fleet` | List personal fleet |
+| `POST` | `/api/personal/fleet` | Add fleet aircraft |
+| `PATCH` | `/api/personal/fleet/{aircraftId}` | Update fleet aircraft |
+| `DELETE` | `/api/personal/fleet/{aircraftId}` | Delete fleet aircraft |
+| `POST` | `/api/personal/flights` | Create flight with PDF upload and trigger analysis |
+| `GET` | `/api/personal/flights/{flightId}` | Poll analysis job status (`?jobId=`) |
+| `PATCH` | `/api/personal/flights/{flightId}` | Update extracted flight details |
+| `POST` | `/api/personal/flights/{flightId}/analysis` | Trigger downstream analysis |
+| `POST` | `/api/personal/flights/{flightId}/notam-feedback` | Submit NOTAM feedback |
+
+See [organisation-members.md](./organisation-members.md), [organisation-invites.md](./organisation-invites.md), [fleet.md](./fleet.md), [flights.md](./flights.md), [personal-app.md](./personal-app.md), and [api-logging.md](./api-logging.md).

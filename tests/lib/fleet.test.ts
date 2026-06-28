@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
+  getPersonalFleet,
   groupAircraftReferenceByManufacturer,
   validateFleetAircraftPayload,
   validateFleetAircraftUpdatePayload,
@@ -231,5 +232,35 @@ describe("validateFleetAircraftUpdatePayload", () => {
       valid: false,
       error: "Tail number is required",
     });
+  });
+});
+
+describe("getPersonalFleet", () => {
+  it("loads fleet aircraft scoped by user id", async () => {
+    const fleet = [
+      {
+        id: "aircraft-1",
+        manufacturer: "Gulfstream",
+        model: "G700",
+        tail_number: "N123AB",
+        seats: 8,
+        rnav_equipped: false,
+      },
+    ];
+
+    const orderTail = vi.fn().mockResolvedValue({ data: fleet, error: null });
+    const orderModel = vi.fn().mockReturnValue({ order: orderTail });
+    const orderManufacturer = vi.fn().mockReturnValue({ order: orderModel });
+    const eq = vi.fn().mockReturnValue({ order: orderManufacturer });
+    const select = vi.fn().mockReturnValue({ eq });
+    const from = vi.fn().mockReturnValue({ select });
+
+    const supabase = { from };
+
+    const result = await getPersonalFleet(supabase as never, "user-1");
+
+    expect(from).toHaveBeenCalledWith("fleet_aircraft");
+    expect(eq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(result).toEqual(fleet);
   });
 });

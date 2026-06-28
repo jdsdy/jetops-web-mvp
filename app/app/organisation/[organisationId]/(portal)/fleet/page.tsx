@@ -29,8 +29,8 @@ export default async function OrganisationFleetPage({
 
   return (
     <FleetSection
-      organisationId={organisationId}
-      isAdmin={membership?.is_admin ?? false}
+      fleetApiBasePath={`/api/organisations/${organisationId}/fleet`}
+      canManageFleet={membership?.is_admin ?? false}
       initialFleet={fleet}
     />
   );

@@ -1,13 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   buildFlightPlanStoragePath,
   buildFlightAnalysisRequestBody,
+  buildFlightAnalysisRequestBodyForUser,
+  buildJetOpsJobCreateBody,
   formatNotamText,
   buildFlightAnalysedNotamsSnapshot,
   groupAnalysedNotamsByCategory,
   formatFlightExtractionDateTimeForDisplay,
   formatFlightExtractionDateTimeForInput,
+  getPersonalFlights,
   hasFlightExtractionChanges,
   isAnalysisFailedJobStatus,
   isAnalysisFinishedJobStatus,
@@ -28,6 +31,7 @@ import {
   sanitizeFlightPlanFilename,
   splitFlightExtractionUpdate,
   validateCreateFlightFormData,
+  validateCreatePersonalFlightFormData,
   validateFlightAnalysisRequestPayload,
   validateFlightExtractionUpdatePayload,
   type RawNotam,
@@ -816,5 +820,115 @@ describe("validateCreateFlightFormData", () => {
       valid: false,
       error: "Flight plan must be 10MB or smaller",
     });
+  });
+});
+
+describe("validateCreatePersonalFlightFormData", () => {
+  const aircraftId = "11111111-1111-4111-8111-111111111111";
+  const flightPlan = new File(["pdf"], "plan.pdf", { type: "application/pdf" });
+
+  it("accepts aircraft and flight plan without pic_user_id", () => {
+    const formData = new FormData();
+    formData.set("aircraft_id", aircraftId);
+    formData.set("flight_plan", flightPlan);
+
+    expect(validateCreatePersonalFlightFormData(formData)).toEqual({
+      valid: true,
+      payload: {
+        aircraft_id: aircraftId,
+        flight_plan: flightPlan,
+      },
+    });
+  });
+
+  it("rejects a missing aircraft id", () => {
+    const formData = new FormData();
+    formData.set("flight_plan", flightPlan);
+
+    expect(validateCreatePersonalFlightFormData(formData)).toEqual({
+      valid: false,
+      error: "Aircraft is required",
+    });
+  });
+});
+
+describe("buildJetOpsJobCreateBody", () => {
+  it("builds the personal JetOps job create payload", () => {
+    expect(
+      buildJetOpsJobCreateBody({
+        user_id: "11111111-1111-4111-8111-111111111111",
+        flight_id: "22222222-2222-4222-8222-222222222222",
+        flight_plan_id: "33333333-3333-4333-8333-333333333333",
+        storage_path: "11111111-1111-4111-8111-111111111111/flight/plan/briefing.pdf",
+      }),
+    ).toEqual({
+      user_id: "11111111-1111-4111-8111-111111111111",
+      flight_id: "22222222-2222-4222-8222-222222222222",
+      flight_plan_id: "33333333-3333-4333-8333-333333333333",
+      storage_path: "11111111-1111-4111-8111-111111111111/flight/plan/briefing.pdf",
+    });
+  });
+});
+
+describe("buildFlightAnalysisRequestBodyForUser", () => {
+  it("builds the JetOps analysis request payload for personal accounts", () => {
+    expect(
+      buildFlightAnalysisRequestBodyForUser(
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+        "33333333-3333-4333-8333-333333333333",
+        "44444444-4444-4444-8444-444444444444",
+      ),
+    ).toEqual({
+      user_id: "11111111-1111-4111-8111-111111111111",
+      flight_id: "22222222-2222-4222-8222-222222222222",
+      job_id: "33333333-3333-4333-8333-333333333333",
+      flight_plan_id: "44444444-4444-4444-8444-444444444444",
+    });
+  });
+});
+
+describe("getPersonalFlights", () => {
+  it("loads flights scoped by user id", async () => {
+    const flights = [
+      {
+        id: "flight-1",
+        created_at: "2026-06-01T00:00:00.000Z",
+        status: null,
+        departure_icao: "EGLL",
+        arrival_icao: "LFPG",
+        fleet_aircraft: { tail_number: "N123AB", model: "G700" },
+        flight_plans: [
+          {
+            id: "plan-1",
+            is_current: true,
+            analysis_jobs: [{ id: "job-1", status: "complete" }],
+          },
+        ],
+      },
+    ];
+
+    const order = vi.fn().mockResolvedValue({ data: flights, error: null });
+    const eq = vi.fn().mockReturnValue({ order });
+    const select = vi.fn().mockReturnValue({ eq });
+    const from = vi.fn().mockReturnValue({ select });
+
+    const result = await getPersonalFlights({ from } as never, "user-1");
+
+    expect(from).toHaveBeenCalledWith("flights");
+    expect(eq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(result).toEqual([
+      {
+        id: "flight-1",
+        created_at: "2026-06-01T00:00:00.000Z",
+        status: null,
+        departure_icao: "EGLL",
+        arrival_icao: "LFPG",
+        tail_number: "N123AB",
+        model: "G700",
+        job_id: "job-1",
+        job_status: "complete",
+      },
+    ]);
   });
 });
