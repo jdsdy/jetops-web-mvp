@@ -16,7 +16,7 @@ export function getPasswordResetRedirectUrl(): string {
  * Returns the JetOps jobs API base URL.
  */
 export function getJetOpsApiUrl(): string {
-  return process.env.JETOPS_API_URL ?? "http://127.0.0.1:8000";
+  return process.env.JETOPS_API_URL ?? "http://127.0.0.1:8000/v1/app";
 }
 
 /**

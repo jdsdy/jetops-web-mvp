@@ -7,7 +7,7 @@ Organisation members create flights and upload PDF flight plans from `/app/organ
 | Table | Purpose |
 | --- | --- |
 | `flights` | Organisation flight record (aircraft, PIC, departure/arrival ICAO) |
-| `flight_plans` | Uploaded flight plan PDF metadata and extracted route/timing fields |
+| `flight_plans` | Uploaded flight plan PDF metadata and extracted route/timing fields; exactly one row per flight has `is_current = true` |
 | `analysis_jobs` | External analysis job status polled from the flights page |
 | `raw_notams` | Extracted NOTAM text linked to an analysis job and flight plan |
 
@@ -34,7 +34,7 @@ Creates and uploads use the secret-key client after an active membership check i
 ## Environment variables
 
 ```
-JETOPS_API_URL=http://127.0.0.1:8000
+JETOPS_API_URL=http://127.0.0.1:8000/v1/app
 JETOPS_API_KEY=your-api-key
 ```
 
@@ -70,7 +70,7 @@ Handler steps:
 2. Insert `flight_plans` row
 3. Upload PDF to `flight_plan_pdfs`
 4. Update `flight_plans.storage_path`
-5. `POST {JETOPS_API_URL}/v1/jobs` with user JWT, `X-API-KEY`, and org/flight/plan/storage path
+5. `POST {JETOPS_API_URL}/jobs` with user JWT, `X-API-KEY`, and org/flight/plan/storage path
 6. Return external job `id` as `job_id`
 
 On failure after partial writes, uploaded objects and DB rows are rolled back.
@@ -80,6 +80,48 @@ On failure after partial writes, uploaded objects and DB rows are rolled back.
 | 400 | Invalid payload or aircraft/PIC not in org |
 | 401 | No authenticated session |
 | 403 | User is not an active member |
+| 502 | External analysis service error |
+| 500 | Database, storage, or missing API key |
+
+### `POST /api/organisations/{organisationId}/flights/{flightId}/reupload`
+
+Replaces the current flight plan on an existing flight and triggers a new extraction job.
+
+Auth: active organisation member.
+
+Request: `multipart/form-data`
+
+| Field | Type |
+| --- | --- |
+| `flight_plan` | PDF file (max 10MB) |
+
+Response: `201`
+
+```json
+{
+  "flight_id": "uuid",
+  "flight_plan_id": "uuid",
+  "job_id": "uuid"
+}
+```
+
+Handler steps:
+
+1. Verify the flight belongs to the organisation
+2. Call Postgres `set_current_flight_plan` (creates a new `flight_plans` row, sets prior plans `is_current = false`)
+3. Upload PDF to `flight_plan_pdfs`
+4. Update `flight_plans.storage_path`
+5. `POST {JETOPS_API_URL}/jobs` with user JWT, `X-API-KEY`, and org/flight/plan/storage path
+6. Return external job `id` as `job_id`
+
+On failure after partial writes, the uploaded object is removed, the new plan row is deleted, and the previous current plan is restored.
+
+| Status | Meaning |
+| --- | --- |
+| 400 | Invalid payload |
+| 401 | No authenticated session |
+| 403 | User is not an active member |
+| 404 | Flight not found |
 | 502 | External analysis service error |
 | 500 | Database, storage, or missing API key |
 
@@ -158,7 +200,7 @@ Request: `application/json`
 | --- | --- |
 | `job_id` | uuid (`analysis_jobs.id` for the current flight plan) |
 
-Forwards to `POST {JETOPS_API_URL}/v1/jobs/analysis` with the user JWT, `X-API-KEY`, and body:
+Forwards to `POST {JETOPS_API_URL}/jobs/analysis` with the user JWT, `X-API-KEY`, and body:
 
 ```json
 {
@@ -254,7 +296,7 @@ Uses the organisation portal shell (`OrganisationAppShell`) via `flights/layout.
 
 **Layout (top to bottom):**
 
-1. Back link to the flights list and a status badge for the current job
+1. Back link to the flights list, an **Upload new briefing** control, and a status badge for the current job
 2. **Extraction progress** — shown while `processing_extraction`; step list with elapsed time
 3. **Flight details** — extracted fields in a portal card; editable at `awaiting_confirmation` with **Save changes** and **Confirm & analyse**
 4. **Analysis progress** — shown while `processing_analysis` or `retrying`; step list, elapsed time, NOTAM classification counts, and a note that analysis typically takes about 2 minutes. When status is `failed`, a failure message replaces the in-progress panel.
@@ -271,6 +313,13 @@ Uses the organisation portal shell (`OrganisationAppShell`) via `flights/layout.
 - **Confirm & analyse** calls `POST /api/organisations/{organisationId}/flights/{flightId}/analysis`; a `response_begun: true` response shows the analysis progress panel until results are ready
 - When `analysis_jobs.status` is `retrying`, `partial_finish`, or `finished`, analysed NOTAMs are loaded from `analysed_notams` (joined to `raw_notams`); `retrying` refreshes partial results and shows pending count; `partial_finish` also includes failed and unclassified NOTAMs
 - Multiline NOTAM fields render `{\n}` placeholders as line breaks in expanded rows
+
+**Upload new briefing:**
+
+- Shown once initial extraction has finished (`status !== processing_extraction`), including when analysis fails
+- Enabled while reviewing extracted flight data (`awaiting_confirmation`) or after analysis reaches a terminal state (`finished`, `partial_finish`, `failed`); disabled while extraction or analysis is actively processing (`processing_analysis`, `retrying`)
+- Opens a modal to upload a replacement PDF via `POST /api/organisations/{organisationId}/flights/{flightId}/reupload` (or the personal equivalent)
+- On success, redirects to the same analysis page with the new `jobId` so extraction and NOTAM data load for the new current `flight_plans` row
 
 ## Personal accounts
 

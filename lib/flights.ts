@@ -16,7 +16,7 @@ const FLIGHT_LIST_SELECT = `
   flight_plans(
     id,
     is_current,
-    analysis_jobs(id, status)
+    analysis_jobs(id, status, started_at)
   )
 ` as const;
 
@@ -30,6 +30,24 @@ export type CreatePersonalFlightPayload = {
   aircraft_id: string;
   flight_plan: File;
 };
+
+export type ReuploadFlightPlanPayload = {
+  flight_plan: File;
+};
+
+type ReuploadFlightPlanValidationSuccess = {
+  valid: true;
+  payload: ReuploadFlightPlanPayload;
+};
+
+type ReuploadFlightPlanValidationFailure = {
+  valid: false;
+  error: string;
+};
+
+export type ReuploadFlightPlanValidationResult =
+  | ReuploadFlightPlanValidationSuccess
+  | ReuploadFlightPlanValidationFailure;
 
 type CreateFlightValidationSuccess = {
   valid: true;
@@ -176,6 +194,25 @@ export const FLIGHT_EXTRACTION_EDITABLE_JOB_STATUS = "awaiting_confirmation";
  */
 export function isFlightExtractionEditableJobStatus(status: string): boolean {
   return status === FLIGHT_EXTRACTION_EDITABLE_JOB_STATUS;
+}
+
+/**
+ * Returns whether the upload-new-briefing control should be shown.
+ */
+export function isReuploadBriefingVisible(status: string): boolean {
+  return status !== "processing_extraction";
+}
+
+/**
+ * Returns whether the upload-new-briefing control can be opened.
+ */
+export function isReuploadBriefingEnabled(status: string): boolean {
+  return (
+    isFlightExtractionEditableJobStatus(status) ||
+    isAnalysisFinishedJobStatus(status) ||
+    isAnalysisPartialFinishJobStatus(status) ||
+    isAnalysisFailedJobStatus(status)
+  );
 }
 
 const FLIGHT_EXTRACTION_DATETIME_FIELDS = [
@@ -677,7 +714,7 @@ type FlightRow = {
     | {
         id: string;
         is_current: boolean;
-        analysis_jobs: { id: string; status: string }[] | null;
+        analysis_jobs: { id: string; status: string; started_at: string | null }[] | null;
       }[]
     | null;
 };
@@ -793,11 +830,33 @@ export function mapFlightExtractionResult(
 }
 
 /**
+ * Picks the most recently created analysis job from a list.
+ */
+export function pickLatestAnalysisJob(
+  jobs: { id: string; status: string; started_at: string | null }[] | null | undefined,
+): { id: string; status: string; started_at: string | null } | null {
+  if (!jobs?.length) {
+    return null;
+  }
+
+  return [...jobs].sort((left, right) => {
+    const rightStarted = right.started_at ?? "";
+    const leftStarted = left.started_at ?? "";
+
+    if (rightStarted !== leftStarted) {
+      return rightStarted.localeCompare(leftStarted);
+    }
+
+    return right.id.localeCompare(left.id);
+  })[0];
+}
+
+/**
  * Maps a joined flights query row to a list item.
  */
 function mapFlightRow(flight: FlightRow): OrganisationFlightListItem {
   const currentPlan = flight.flight_plans?.find((plan) => plan.is_current) ?? null;
-  const analysisJob = currentPlan?.analysis_jobs?.[0] ?? null;
+  const analysisJob = pickLatestAnalysisJob(currentPlan?.analysis_jobs);
   const aircraft = firstRelation(flight.fleet_aircraft);
 
   return {
@@ -810,6 +869,66 @@ function mapFlightRow(flight: FlightRow): OrganisationFlightListItem {
     model: aircraft?.model ?? null,
     job_id: analysisJob?.id ?? null,
     job_status: analysisJob?.status ?? null,
+  };
+}
+
+type FlightPlanFileValidationSuccess = {
+  valid: true;
+  file: File;
+};
+
+type FlightPlanFileValidationFailure = {
+  valid: false;
+  error: string;
+};
+
+type FlightPlanFileValidationResult =
+  | FlightPlanFileValidationSuccess
+  | FlightPlanFileValidationFailure;
+
+/**
+ * Validates a flight plan PDF file from multipart form data.
+ */
+function validateFlightPlanFile(
+  flightPlan: FormDataEntryValue | null,
+): FlightPlanFileValidationResult {
+  if (!(flightPlan instanceof File) || flightPlan.size === 0) {
+    return { valid: false, error: "Flight plan PDF is required" };
+  }
+
+  const isPdfMime =
+    flightPlan.type === "application/pdf" ||
+    flightPlan.type === "application/x-pdf";
+  const isPdfName = flightPlan.name.toLowerCase().endsWith(".pdf");
+
+  if (!isPdfMime && !isPdfName) {
+    return { valid: false, error: "Flight plan must be a PDF file" };
+  }
+
+  if (flightPlan.size > MAX_FLIGHT_PLAN_BYTES) {
+    return { valid: false, error: "Flight plan must be 10MB or smaller" };
+  }
+
+  return { valid: true, file: flightPlan };
+}
+
+/**
+ * Validates multipart form data for reuploading a flight plan PDF.
+ */
+export function validateReuploadFlightPlanFormData(
+  formData: FormData,
+): ReuploadFlightPlanValidationResult {
+  const flightPlanValidation = validateFlightPlanFile(formData.get("flight_plan"));
+
+  if (!flightPlanValidation.valid) {
+    return flightPlanValidation;
+  }
+
+  return {
+    valid: true,
+    payload: {
+      flight_plan: flightPlanValidation.file,
+    },
   };
 }
 
@@ -839,21 +958,10 @@ export function validateCreateFlightFormData(
     return { valid: false, error: "PIC is invalid" };
   }
 
-  if (!(flightPlan instanceof File) || flightPlan.size === 0) {
-    return { valid: false, error: "Flight plan PDF is required" };
-  }
+  const flightPlanValidation = validateFlightPlanFile(flightPlan);
 
-  const isPdfMime =
-    flightPlan.type === "application/pdf" ||
-    flightPlan.type === "application/x-pdf";
-  const isPdfName = flightPlan.name.toLowerCase().endsWith(".pdf");
-
-  if (!isPdfMime && !isPdfName) {
-    return { valid: false, error: "Flight plan must be a PDF file" };
-  }
-
-  if (flightPlan.size > MAX_FLIGHT_PLAN_BYTES) {
-    return { valid: false, error: "Flight plan must be 10MB or smaller" };
+  if (!flightPlanValidation.valid) {
+    return flightPlanValidation;
   }
 
   return {
@@ -861,7 +969,7 @@ export function validateCreateFlightFormData(
     payload: {
       aircraft_id: aircraftId,
       pic_user_id: picUserId,
-      flight_plan: flightPlan,
+      flight_plan: flightPlanValidation.file,
     },
   };
 }
@@ -897,28 +1005,17 @@ export function validateCreatePersonalFlightFormData(
     return { valid: false, error: "Aircraft is invalid" };
   }
 
-  if (!(flightPlan instanceof File) || flightPlan.size === 0) {
-    return { valid: false, error: "Flight plan PDF is required" };
-  }
+  const flightPlanValidation = validateFlightPlanFile(flightPlan);
 
-  const isPdfMime =
-    flightPlan.type === "application/pdf" ||
-    flightPlan.type === "application/x-pdf";
-  const isPdfName = flightPlan.name.toLowerCase().endsWith(".pdf");
-
-  if (!isPdfMime && !isPdfName) {
-    return { valid: false, error: "Flight plan must be a PDF file" };
-  }
-
-  if (flightPlan.size > MAX_FLIGHT_PLAN_BYTES) {
-    return { valid: false, error: "Flight plan must be 10MB or smaller" };
+  if (!flightPlanValidation.valid) {
+    return flightPlanValidation;
   }
 
   return {
     valid: true,
     payload: {
       aircraft_id: aircraftId,
-      flight_plan: flightPlan,
+      flight_plan: flightPlanValidation.file,
     },
   };
 }

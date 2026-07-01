@@ -345,7 +345,7 @@ export async function validateSignupCode(
   let response: Response;
 
   try {
-    response = await fetch(`${getJetOpsApiUrl()}/v1/signup`, {
+    response = await fetch(`${getJetOpsApiUrl()}/signup`, {
       method: "POST",
       headers: {
         "X-API-KEY": apiKey,

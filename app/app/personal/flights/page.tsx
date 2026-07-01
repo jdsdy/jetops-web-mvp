@@ -86,6 +86,7 @@ export default async function PersonalFlightsPage({
 
   return (
     <FlightExtractionDetailsSection
+      key={`${flightId}-${jobId}`}
       flightsApiBasePath="/api/personal/flights"
       flightId={flightId}
       flightPlanId={analysisJob.flightPlanId}
@@ -95,6 +96,7 @@ export default async function PersonalFlightsPage({
       initialAnalysedSnapshot={initialAnalysedSnapshot}
       initialRawNotams={initialRawNotams}
       appHomePath={appHomePath}
+      analysisPageBasePath="/app/personal/flights"
     />
   );
 }

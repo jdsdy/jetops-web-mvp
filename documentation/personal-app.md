@@ -57,7 +57,7 @@ Creates and uploads use the secret-key client after a personal account check in 
 | --- | --- |
 | `lib/personal.ts` | Personal paths, `requirePersonalAccount`, `resolvePersonalRouteAccess` |
 | `lib/fleet.ts` | `getPersonalFleet` |
-| `lib/flights.ts` | `getPersonalFlights`, `validateCreatePersonalFlightFormData`, `buildJetOpsJobCreateBody`, `buildFlightAnalysisRequestBodyForUser` |
+| `lib/flights.ts` | `getPersonalFlights`, `validateCreatePersonalFlightFormData`, `validateReuploadFlightPlanFormData`, `buildJetOpsJobCreateBody`, `buildFlightAnalysisRequestBodyForUser` |
 
 Tests: `tests/lib/personal.test.ts`.
 
@@ -72,6 +72,7 @@ Personal routes mirror organisation routes under `/api/personal/`. Auth: session
 | `PATCH` | `/api/personal/fleet/{aircraftId}` | Update aircraft |
 | `DELETE` | `/api/personal/fleet/{aircraftId}` | Delete aircraft |
 | `POST` | `/api/personal/flights` | Create flight with PDF upload and trigger analysis |
+| `POST` | `/api/personal/flights/{flightId}/reupload` | Replace current flight plan PDF and trigger a new extraction job |
 | `GET` | `/api/personal/flights/{flightId}` | Poll analysis job status (`?jobId=`) |
 | `PATCH` | `/api/personal/flights/{flightId}` | Update extracted flight details |
 | `POST` | `/api/personal/flights/{flightId}/analysis` | Trigger downstream analysis |

@@ -274,7 +274,7 @@ export async function POST(
   let externalResponse: Response;
 
   try {
-    externalResponse = await fetch(`${getJetOpsApiUrl()}/v1/jobs`, {
+    externalResponse = await fetch(`${getJetOpsApiUrl()}/jobs`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${session.access_token}`,

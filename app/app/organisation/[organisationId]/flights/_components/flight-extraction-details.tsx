@@ -7,7 +7,9 @@ import { AnalysisProgressPanel } from "@/app/app/organisation/[organisationId]/f
 import { AnalysisStatusBadge } from "@/app/app/organisation/[organisationId]/flights/_components/analysis-status-badge";
 import { AnalysedNotamsList } from "@/app/app/organisation/[organisationId]/flights/_components/analysed-notams-list";
 import { FlightExtractionForm } from "@/app/app/organisation/[organisationId]/flights/_components/flight-extraction-form";
+import { UploadBriefingModal } from "@/app/app/organisation/[organisationId]/flights/_components/upload-briefing-modal";
 import { portalLinkClassName } from "@/components/portal-styles";
+import { PortalButton } from "@/components/portal-button";
 import {
   getFlightAnalysedNotamsSnapshot,
   getFlightExtractionResult,
@@ -21,6 +23,8 @@ import {
   isAnalysisRetryingJobStatus,
   isExtractionReadyJobStatus,
   isFlightExtractionEditableJobStatus,
+  isReuploadBriefingEnabled,
+  isReuploadBriefingVisible,
   type AnalysedNotam,
   type AnalysedNotamCategoryGroup,
   type FlightAnalysedNotamsSnapshot,
@@ -41,6 +45,7 @@ type FlightExtractionDetailsProps = {
   initialAnalysedSnapshot: FlightAnalysedNotamsSnapshot | null;
   initialRawNotams: RawNotam[];
   appHomePath: string;
+  analysisPageBasePath: string;
 };
 
 type FlightJobStatusResponse = {
@@ -90,6 +95,7 @@ export function FlightExtractionDetailsSection({
   initialAnalysedSnapshot,
   initialRawNotams,
   appHomePath,
+  analysisPageBasePath,
 }: FlightExtractionDetailsProps) {
   const extractionReadyInitially = isExtractionReadyJobStatus(initialJobStatus);
   const resultsReadyInitially = isAnalysisResultsReadyJobStatus(initialJobStatus);
@@ -124,6 +130,7 @@ export function FlightExtractionDetailsSection({
   const [analysisStartedAt, setAnalysisStartedAt] = useState<number | null>(
     analysisActiveInitially ? Date.now() : null,
   );
+  const [reuploadOpen, setReuploadOpen] = useState(false);
   const extractionLoadedRef = useRef(extractionReadyInitially);
   const analysedLoadedRef = useRef(
     resultsReadyInitially && !isAnalysisRetryingJobStatus(initialJobStatus),
@@ -350,14 +357,36 @@ export function FlightExtractionDetailsSection({
     notams.length ||
     classifiedCount + pendingAnalysedNotamCount + failedNotams.length;
 
+  const showReuploadBriefing = isReuploadBriefingVisible(jobStatus);
+  const reuploadBriefingEnabled = isReuploadBriefingEnabled(jobStatus);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Link href={appHomePath} className={portalLinkClassName}>
           ← Back to flights
         </Link>
-        <AnalysisStatusBadge status={jobStatus} />
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          {showReuploadBriefing ? (
+            <PortalButton
+              variant="secondary"
+              disabled={!reuploadBriefingEnabled}
+              onClick={() => setReuploadOpen(true)}
+            >
+              Upload new briefing
+            </PortalButton>
+          ) : null}
+          <AnalysisStatusBadge status={jobStatus} />
+        </div>
       </div>
+
+      <UploadBriefingModal
+        open={reuploadOpen}
+        onClose={() => setReuploadOpen(false)}
+        reuploadApiPath={`${flightsApiBasePath}/${encodeURIComponent(flightId)}/reupload`}
+        flightId={flightId}
+        analysisPageBasePath={analysisPageBasePath}
+      />
 
       {showExtractionProgress ? (
         <AnalysisProgressPanel phase="extraction" startedAt={extractionStartedAt} />

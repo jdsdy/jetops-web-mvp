@@ -24,16 +24,20 @@ import {
   isExtractionReadyJobStatus,
   isFlightAnalysisBegunResponse,
   isFlightExtractionEditableJobStatus,
+  isReuploadBriefingEnabled,
+  isReuploadBriefingVisible,
   mapAnalysedNotamRow,
   mapFlightExtractionDetails,
   mapRawNotamRow,
   parseFlightExtractionDateTimeInput,
+  pickLatestAnalysisJob,
   sanitizeFlightPlanFilename,
   splitFlightExtractionUpdate,
   validateCreateFlightFormData,
   validateCreatePersonalFlightFormData,
   validateFlightAnalysisRequestPayload,
   validateFlightExtractionUpdatePayload,
+  validateReuploadFlightPlanFormData,
   type RawNotam,
 } from "@/lib/flights";
 
@@ -930,5 +934,144 @@ describe("getPersonalFlights", () => {
         job_status: "complete",
       },
     ]);
+  });
+
+  it("uses the most recent analysis job for the current flight plan", async () => {
+    const flights = [
+      {
+        id: "flight-1",
+        created_at: "2026-06-01T00:00:00.000Z",
+        status: null,
+        departure_icao: "EGLL",
+        arrival_icao: "LFPG",
+        fleet_aircraft: { tail_number: "N123AB", model: "G700" },
+        flight_plans: [
+          {
+            id: "plan-1",
+            is_current: true,
+            analysis_jobs: [
+              {
+                id: "job-old",
+                status: "finished",
+                started_at: "2026-06-01T08:00:00.000Z",
+              },
+              {
+                id: "job-new",
+                status: "processing_extraction",
+                started_at: "2026-06-01T12:00:00.000Z",
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const order = vi.fn().mockResolvedValue({ data: flights, error: null });
+    const eq = vi.fn().mockReturnValue({ order });
+    const select = vi.fn().mockReturnValue({ eq });
+    const from = vi.fn().mockReturnValue({ select });
+
+    const result = await getPersonalFlights({ from } as never, "user-1");
+
+    expect(result[0]?.job_id).toBe("job-new");
+    expect(result[0]?.job_status).toBe("processing_extraction");
+  });
+});
+
+describe("pickLatestAnalysisJob", () => {
+  it("returns the job with the latest started_at", () => {
+    expect(
+      pickLatestAnalysisJob([
+        { id: "job-old", status: "finished", started_at: "2026-06-01T08:00:00.000Z" },
+        { id: "job-new", status: "awaiting_confirmation", started_at: "2026-06-01T12:00:00.000Z" },
+      ]),
+    ).toEqual({
+      id: "job-new",
+      status: "awaiting_confirmation",
+      started_at: "2026-06-01T12:00:00.000Z",
+    });
+  });
+
+  it("falls back to id when started_at is missing", () => {
+    expect(
+      pickLatestAnalysisJob([
+        { id: "job-a", status: "finished", started_at: null },
+        { id: "job-z", status: "awaiting_confirmation", started_at: null },
+      ]),
+    ).toEqual({
+      id: "job-z",
+      status: "awaiting_confirmation",
+      started_at: null,
+    });
+  });
+
+  it("returns null when there are no jobs", () => {
+    expect(pickLatestAnalysisJob([])).toBeNull();
+    expect(pickLatestAnalysisJob(null)).toBeNull();
+  });
+});
+
+describe("validateReuploadFlightPlanFormData", () => {
+  it("accepts a valid PDF upload", () => {
+    const formData = new FormData();
+    formData.set(
+      "flight_plan",
+      new File(["pdf"], "briefing.pdf", { type: "application/pdf" }),
+    );
+
+    const result = validateReuploadFlightPlanFormData(formData);
+
+    expect(result.valid).toBe(true);
+    if (result.valid) {
+      expect(result.payload.flight_plan.name).toBe("briefing.pdf");
+    }
+  });
+
+  it("rejects a missing flight plan", () => {
+    expect(validateReuploadFlightPlanFormData(new FormData())).toEqual({
+      valid: false,
+      error: "Flight plan PDF is required",
+    });
+  });
+
+  it("rejects a non-PDF file", () => {
+    const formData = new FormData();
+    formData.set("flight_plan", new File(["txt"], "notes.txt", { type: "text/plain" }));
+
+    expect(validateReuploadFlightPlanFormData(formData)).toEqual({
+      valid: false,
+      error: "Flight plan must be a PDF file",
+    });
+  });
+});
+
+describe("isReuploadBriefingVisible", () => {
+  it("hides the button during initial extraction", () => {
+    expect(isReuploadBriefingVisible("processing_extraction")).toBe(false);
+  });
+
+  it("shows the button after extraction and on failure", () => {
+    expect(isReuploadBriefingVisible("awaiting_confirmation")).toBe(true);
+    expect(isReuploadBriefingVisible("processing_analysis")).toBe(true);
+    expect(isReuploadBriefingVisible("finished")).toBe(true);
+    expect(isReuploadBriefingVisible("failed")).toBe(true);
+  });
+});
+
+describe("isReuploadBriefingEnabled", () => {
+  it("enables reupload while reviewing extracted flight data", () => {
+    expect(isReuploadBriefingEnabled("awaiting_confirmation")).toBe(true);
+  });
+
+  it("enables reupload after analysis finishes or fails", () => {
+    expect(isReuploadBriefingEnabled("finished")).toBe(true);
+    expect(isReuploadBriefingEnabled("partial_finish")).toBe(true);
+    expect(isReuploadBriefingEnabled("failed")).toBe(true);
+  });
+
+  it("disables reupload while work is in progress", () => {
+    expect(isReuploadBriefingEnabled("processing_extraction")).toBe(false);
+    expect(isReuploadBriefingEnabled("processing_analysis")).toBe(false);
+    expect(isReuploadBriefingEnabled("retrying")).toBe(false);
   });
 });

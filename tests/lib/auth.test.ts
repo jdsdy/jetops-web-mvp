@@ -358,7 +358,7 @@ describe("validateSignupCode", () => {
 
   beforeEach(() => {
     vi.stubEnv("JETOPS_API_KEY", "test-api-key");
-    vi.stubEnv("JETOPS_API_URL", "http://api.test");
+    vi.stubEnv("JETOPS_API_URL", "http://api.test/v1/app");
     vi.stubGlobal("fetch", fetchMock);
   });
 
@@ -383,7 +383,7 @@ describe("validateSignupCode", () => {
       valid: true,
     });
 
-    expect(fetchMock).toHaveBeenCalledWith("http://api.test/v1/signup", {
+    expect(fetchMock).toHaveBeenCalledWith("http://api.test/v1/app/signup", {
       method: "POST",
       headers: {
         "X-API-KEY": "test-api-key",

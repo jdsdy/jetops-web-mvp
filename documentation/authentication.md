@@ -33,7 +33,7 @@ The Jet Ops MVP project URL is `https://wohclkrdcyykdjqzczgy.supabase.co`.
 
 1. User opens `/auth` and switches to **Create an account**.
 2. User submits email, password, confirm password, signup code, and account type (`organisation` or `personal`).
-3. `signUp` validates that password and confirm password match, then calls `POST {JETOPS_API_URL}/v1/signup` with `X-API-KEY` and a JSON body `{ "code": "<signup_code>" }`. A `400` response blocks signup and shows the API error message; `200` continues.
+3. `signUp` validates that password and confirm password match, then calls `POST {JETOPS_API_URL}/signup` with `X-API-KEY` and a JSON body `{ "code": "<signup_code>" }`. A `400` response blocks signup and shows the API error message; `200` continues.
 4. `signUp` stores `account_type` in `raw_user_meta_data`.
 5. A database trigger (`handle_new_user`) creates a row in `public.profiles`.
 6. Supabase sends a confirmation email redirecting to `/auth`.

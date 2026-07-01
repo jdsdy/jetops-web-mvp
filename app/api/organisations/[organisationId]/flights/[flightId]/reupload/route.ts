@@ -6,16 +6,15 @@ import { getJetOpsApiKey, getJetOpsApiUrl } from "@/lib/env";
 import {
   FLIGHT_PLAN_BUCKET,
   buildFlightPlanStoragePath,
-  buildJetOpsJobCreateBody,
   sanitizeFlightPlanFilename,
-  validateCreatePersonalFlightFormData,
+  validateReuploadFlightPlanFormData,
 } from "@/lib/flights";
-import { requirePersonalAccount } from "@/lib/personal";
+import { requireActiveOrganisationMember } from "@/lib/fleet";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-type CreatedFlightResources = {
-  flightId: string | null;
+type ReuploadedFlightPlanResources = {
+  previousCurrentPlanId: string | null;
   flightPlanId: string | null;
   storagePath: string | null;
 };
@@ -28,29 +27,11 @@ function jsonError(message: string, status: number) {
 }
 
 /**
- * Verifies the aircraft belongs to the personal account owner.
+ * Removes a partially reuploaded flight plan after a failure.
  */
-async function verifyPersonalAircraft(
+async function rollbackReuploadedFlightPlan(
   adminClient: SupabaseClient,
-  userId: string,
-  aircraftId: string,
-): Promise<boolean> {
-  const { data, error } = await adminClient
-    .from("fleet_aircraft")
-    .select("id")
-    .eq("id", aircraftId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  return !error && Boolean(data);
-}
-
-/**
- * Removes partially created flight resources after a failure.
- */
-async function rollbackCreatedFlightResources(
-  adminClient: SupabaseClient,
-  resources: CreatedFlightResources,
+  resources: ReuploadedFlightPlanResources,
 ) {
   if (resources.storagePath) {
     await adminClient.storage
@@ -62,29 +43,36 @@ async function rollbackCreatedFlightResources(
     await adminClient.from("flight_plans").delete().eq("id", resources.flightPlanId);
   }
 
-  if (resources.flightId) {
-    await adminClient.from("flights").delete().eq("id", resources.flightId);
+  if (resources.previousCurrentPlanId) {
+    await adminClient
+      .from("flight_plans")
+      .update({ is_current: true })
+      .eq("id", resources.previousCurrentPlanId);
   }
 }
 
 /**
- * Rolls back partial writes and returns an error response.
+ * Rolls back partial reupload writes and returns an error response.
  */
-async function failAfterRollback(
+async function failAfterReuploadRollback(
   adminClient: SupabaseClient,
-  resources: CreatedFlightResources,
+  resources: ReuploadedFlightPlanResources,
   message: string,
   status: number,
 ) {
-  await rollbackCreatedFlightResources(adminClient, resources);
+  await rollbackReuploadedFlightPlan(adminClient, resources);
   return jsonError(message, status);
 }
 
 /**
- * Creates a personal flight, uploads its plan PDF, and triggers external analysis.
+ * Replaces the current flight plan PDF and triggers a new extraction job.
  */
-export async function POST(request: Request) {
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ organisationId: string; flightId: string }> },
+) {
   return withApiLogging(request, async (logContext) => {
+    const { organisationId, flightId } = await context.params;
     const supabase = await createClient();
     const {
       data: { user },
@@ -96,14 +84,17 @@ export async function POST(request: Request) {
 
     logContext.set({ userId: user.id });
 
-    const { profile, error: accountError } = await requirePersonalAccount(
+    const { membership, error: memberError } = await requireActiveOrganisationMember(
       supabase,
       user.id,
+      organisationId,
     );
 
-    if (accountError || !profile) {
+    if (memberError || !membership) {
       return jsonError("Forbidden", 403);
     }
+
+    logContext.set({ organisationId: membership.organisations.id });
 
     let formData: FormData;
 
@@ -113,74 +104,63 @@ export async function POST(request: Request) {
       return jsonError("Invalid request body", 400);
     }
 
-    const validation = validateCreatePersonalFlightFormData(formData);
+    const validation = validateReuploadFlightPlanFormData(formData);
 
     if (!validation.valid) {
       return jsonError(validation.error, 400);
     }
 
     const adminClient = createAdminClient();
-    const aircraftValid = await verifyPersonalAircraft(
-      adminClient,
-      user.id,
-      validation.payload.aircraft_id,
-    );
+    const resolvedOrganisationId = membership.organisations.id;
 
-    if (!aircraftValid) {
-      return jsonError("Aircraft not found in your fleet", 400);
+    const { data: flight, error: flightError } = await adminClient
+      .from("flights")
+      .select("id")
+      .eq("id", flightId)
+      .eq("organisation_id", resolvedOrganisationId)
+      .maybeSingle();
+
+    if (flightError || !flight) {
+      return jsonError("Flight not found", 404);
     }
 
-    const createdResources: CreatedFlightResources = {
-      flightId: null,
+    const { data: previousCurrentPlan, error: previousPlanError } = await adminClient
+      .from("flight_plans")
+      .select("id")
+      .eq("flight_id", flightId)
+      .eq("is_current", true)
+      .maybeSingle();
+
+    if (previousPlanError) {
+      return jsonError(previousPlanError.message, 500);
+    }
+
+    const createdResources: ReuploadedFlightPlanResources = {
+      previousCurrentPlanId: previousCurrentPlan?.id ?? null,
       flightPlanId: null,
       storagePath: null,
     };
 
-    const { data: createdFlight, error: flightError } = await adminClient
-      .from("flights")
-      .insert({
-        user_id: user.id,
-        organisation_id: null,
-        pic_user_id: user.id,
-        aircraft_id: validation.payload.aircraft_id,
-        status: null,
-      })
-      .select("id")
-      .single();
+    const { data: newPlanId, error: rpcError } = await adminClient.rpc(
+      "set_current_flight_plan",
+      {
+        p_flight_id: flightId,
+        p_storage_path: "",
+        p_uploaded_by: user.id,
+      },
+    );
 
-    if (flightError || !createdFlight) {
-      return jsonError(flightError?.message ?? "Failed to create flight", 500);
+    if (rpcError || !newPlanId) {
+      return jsonError(rpcError?.message ?? "Failed to create flight plan", 500);
     }
 
-    createdResources.flightId = createdFlight.id;
-
-    const { data: createdFlightPlan, error: flightPlanError } = await adminClient
-      .from("flight_plans")
-      .insert({
-        flight_id: createdFlight.id,
-        uploaded_by: user.id,
-        is_current: true,
-        source_app: null,
-      })
-      .select("id")
-      .single();
-
-    if (flightPlanError || !createdFlightPlan) {
-      return failAfterRollback(
-        adminClient,
-        createdResources,
-        flightPlanError?.message ?? "Failed to create flight plan",
-        500,
-      );
-    }
-
-    createdResources.flightPlanId = createdFlightPlan.id;
+    createdResources.flightPlanId = String(newPlanId);
 
     const filename = sanitizeFlightPlanFilename(validation.payload.flight_plan.name);
     const storagePath = buildFlightPlanStoragePath(
-      user.id,
-      createdFlight.id,
-      createdFlightPlan.id,
+      resolvedOrganisationId,
+      flightId,
+      createdResources.flightPlanId,
       filename,
     );
     const fileBuffer = Buffer.from(await validation.payload.flight_plan.arrayBuffer());
@@ -193,7 +173,12 @@ export async function POST(request: Request) {
       });
 
     if (uploadError) {
-      return failAfterRollback(adminClient, createdResources, uploadError.message, 500);
+      return failAfterReuploadRollback(
+        adminClient,
+        createdResources,
+        uploadError.message,
+        500,
+      );
     }
 
     createdResources.storagePath = storagePath;
@@ -201,10 +186,10 @@ export async function POST(request: Request) {
     const { error: storagePathError } = await adminClient
       .from("flight_plans")
       .update({ storage_path: storagePath })
-      .eq("id", createdFlightPlan.id);
+      .eq("id", createdResources.flightPlanId);
 
     if (storagePathError) {
-      return failAfterRollback(
+      return failAfterReuploadRollback(
         adminClient,
         createdResources,
         storagePathError.message,
@@ -215,7 +200,7 @@ export async function POST(request: Request) {
     const jetOpsApiKey = getJetOpsApiKey();
 
     if (!jetOpsApiKey) {
-      return failAfterRollback(
+      return failAfterReuploadRollback(
         adminClient,
         createdResources,
         "JetOps API key is not configured",
@@ -228,7 +213,7 @@ export async function POST(request: Request) {
     } = await supabase.auth.getSession();
 
     if (!session?.access_token) {
-      return failAfterRollback(
+      return failAfterReuploadRollback(
         adminClient,
         createdResources,
         "Authenticated session is required",
@@ -246,17 +231,15 @@ export async function POST(request: Request) {
           "X-API-KEY": jetOpsApiKey,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(
-          buildJetOpsJobCreateBody({
-            user_id: user.id,
-            flight_id: createdFlight.id,
-            flight_plan_id: createdFlightPlan.id,
-            storage_path: storagePath,
-          }),
-        ),
+        body: JSON.stringify({
+          organisation_id: resolvedOrganisationId,
+          flight_id: flightId,
+          flight_plan_id: createdResources.flightPlanId,
+          storage_path: storagePath,
+        }),
       });
     } catch {
-      return failAfterRollback(
+      return failAfterReuploadRollback(
         adminClient,
         createdResources,
         "Failed to contact analysis service",
@@ -273,13 +256,13 @@ export async function POST(request: Request) {
         ? "Analysis service did not return a job id"
         : "Analysis service rejected the job request";
 
-      return failAfterRollback(adminClient, createdResources, message, 502);
+      return failAfterReuploadRollback(adminClient, createdResources, message, 502);
     }
 
     return Response.json(
       {
-        flight_id: createdFlight.id,
-        flight_plan_id: createdFlightPlan.id,
+        flight_id: flightId,
+        flight_plan_id: createdResources.flightPlanId,
         job_id: externalBody.id,
       },
       { status: 201 },
